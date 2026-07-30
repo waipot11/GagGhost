@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { SponsorProduct } from '../types';
+import { SponsorProduct, ShortStory } from '../types';
+import { exportShortVideoMP4 } from '../utils/videoExporter';
 import {
   DollarSign,
   TrendingUp,
@@ -15,15 +16,17 @@ import {
   ExternalLink,
   Save,
   Sparkles,
-  Link2
+  Link2,
+  Loader2
 } from 'lucide-react';
 
 interface Props {
   coins: number;
   onTopUpCoins: (amount: number) => void;
+  stories?: ShortStory[];
 }
 
-export const MonetizationHub: React.FC<Props> = ({ coins, onTopUpCoins }) => {
+export const MonetizationHub: React.FC<Props> = ({ coins, onTopUpCoins, stories = [] }) => {
   const [shopeeAffiliateId, setShopeeAffiliateId] = useState<string>('shopee_aff_gagghost_th');
   const [shopeeTag, setShopeeTag] = useState<string>('GagGhost_Shorts_AI');
   const [shopeeCategory, setShopeeCategory] = useState<string>('ของใช้สยองขวัญตลก');
@@ -33,6 +36,10 @@ export const MonetizationHub: React.FC<Props> = ({ coins, onTopUpCoins }) => {
   const [shopeePresetProducts, setShopeePresetProducts] = useState<SponsorProduct[]>([]);
   const [customShopeeUrl, setCustomShopeeUrl] = useState<string>('');
   const [convertedAffiliateUrl, setConvertedAffiliateUrl] = useState<string>('');
+
+  const [isExporting, setIsExporting] = useState<boolean>(false);
+  const [exportProgress, setExportProgress] = useState<number>(0);
+  const [exportStatusText, setExportStatusText] = useState<string>('');
 
   const [sponsorsList, setSponsorsList] = useState<SponsorProduct[]>([
     {
@@ -68,6 +75,7 @@ export const MonetizationHub: React.FC<Props> = ({ coins, onTopUpCoins }) => {
   ]);
 
   const [showAddSponsorModal, setShowAddSponsorModal] = useState<boolean>(false);
+  const [showYouTubeModal, setShowYouTubeModal] = useState<boolean>(false);
   const [newName, setNewName] = useState<string>('');
   const [newDesc, setNewDesc] = useState<string>('');
   const [newPrice, setNewPrice] = useState<number>(150);
@@ -154,6 +162,47 @@ export const MonetizationHub: React.FC<Props> = ({ coins, onTopUpCoins }) => {
 
     setSponsorsList(prev => [updatedProduct, ...prev.filter(p => p.id !== product.id)]);
     alert(`เลือกสินค้า Shopee ป้ายยา: "${product.name}" สำเร็จ!\nระบบได้ผูก Shopee Affiliate ID (${shopeeAffiliateId}) ของคุณเข้ากับคลิป AI หนังสั้นเรียบร้อยแล้ว`);
+  };
+
+  const handleStartExport = async (targetStory?: ShortStory) => {
+    const storyToExport = targetStory || stories[0] || {
+      id: 'demo-export',
+      title: 'เรื่องเล่าสยองขวัญหักมุมตลก',
+      tagline: 'ผีสิงตู้เย็นแล้วสั่ง GrabFood',
+      category: 'ผีติดสปีด',
+      aspectRatio: '9:16',
+      scenes: [],
+      twistChoiceA: 'A',
+      twistChoiceB: 'B',
+      vipUnlocked: true,
+      likesCount: 120,
+      viewsCount: 1500,
+      sharesCount: 45,
+      commentsCount: 30,
+      creator: 'GagGhost AI Studio',
+      createdAt: 'เมื่อครู่นี้',
+      thumbnailUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=400&q=80',
+      isAutoPublished: true,
+      sponsorProduct: sponsorsList[0]
+    };
+
+    setIsExporting(true);
+    setExportProgress(5);
+    setExportStatusText('กำลังเปิดเอนจิน Canvas 9:16...');
+
+    try {
+      await exportShortVideoMP4(storyToExport as ShortStory, (percent, status) => {
+        setExportProgress(percent);
+        setExportStatusText(status);
+      });
+    } catch (err) {
+      console.error(err);
+      alert('เกิดข้อผิดพลาดในการสร้างไฟล์วิดีโอ');
+    } finally {
+      setTimeout(() => {
+        setIsExporting(false);
+      }, 1500);
+    }
   };
 
   const handleAddSponsorSubmit = (e: React.FormEvent) => {
@@ -489,10 +538,11 @@ export const MonetizationHub: React.FC<Props> = ({ coins, onTopUpCoins }) => {
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <button
-                onClick={() => alert('เริ่มดาวน์โหลดไฟล์วิดีโอ HD 9:16 ความยาว 1 นาทีสำเร็จ!')}
-                className="bg-slate-950 hover:bg-slate-800 border border-slate-700 p-3.5 rounded-2xl flex items-center justify-center gap-2 text-xs font-bold text-slate-200 transition-all"
+                onClick={() => handleStartExport()}
+                disabled={isExporting}
+                className="bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-600/60 p-3.5 rounded-2xl flex items-center justify-center gap-2 text-xs font-bold text-emerald-200 transition-all shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50"
               >
-                <Download className="w-4 h-4 text-emerald-400" />
+                <Download className="w-4 h-4 text-emerald-400 animate-bounce" />
                 <span>ดาวน์โหลด MP4 HD</span>
               </button>
 
@@ -505,11 +555,11 @@ export const MonetizationHub: React.FC<Props> = ({ coins, onTopUpCoins }) => {
               </button>
 
               <button
-                onClick={() => alert('จำลองการยิงคลิปโพสต์เข้า YouTube Shorts สำเร็จ!')}
-                className="bg-slate-950 hover:bg-slate-800 border border-slate-700 p-3.5 rounded-2xl flex items-center justify-center gap-2 text-xs font-bold text-slate-200 transition-all"
+                onClick={() => setShowYouTubeModal(true)}
+                className="bg-gradient-to-r from-red-950 to-amber-950 hover:from-red-900 hover:to-amber-900 border border-red-500/60 p-3.5 rounded-2xl flex items-center justify-center gap-2 text-xs font-bold text-slate-100 transition-all shadow-lg"
               >
-                <Zap className="w-4 h-4 text-amber-400" />
-                <span>ยิงเข้า YT Shorts</span>
+                <Zap className="w-4 h-4 text-red-400 animate-pulse" />
+                <span>ยิงเข้า YT Shorts / คู่มือ</span>
               </button>
             </div>
           </div>
@@ -641,6 +691,143 @@ export const MonetizationHub: React.FC<Props> = ({ coins, onTopUpCoins }) => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* YouTube Shorts Export & Integration Guide Modal */}
+      {showYouTubeModal && (
+        <div className="fixed inset-0 bg-black/85 z-50 flex justify-center items-center p-3">
+          <div className="bg-slate-900 border-2 border-red-500/80 w-full max-w-xl rounded-3xl p-6 text-slate-100 shadow-2xl text-left max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-red-900/60 pb-3 mb-4">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-red-600 text-white font-black text-lg">
+                  ▶
+                </span>
+                <div>
+                  <h3 className="text-base font-black text-red-300">
+                    คำอธิบายการนำคลิปไปโพสต์ลง YouTube Shorts
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    ทำไมระบบขึ้น "ขึ้น Feed สดสำเร็จ" แต่ยังไม่โผล่ในช่อง YouTube ของคุณ?
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowYouTubeModal(false)}
+                className="text-slate-400 hover:text-white font-bold text-lg px-2"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div className="bg-slate-950 p-4 rounded-2xl border border-red-900/50">
+                <h4 className="font-bold text-amber-300 text-xs mb-1">
+                  📌 ข้ออธิบายสำคัญ:
+                </h4>
+                <p className="text-slate-300 leading-relaxed">
+                  สถานะ <span className="text-emerald-400 font-bold">"ขึ้น Feed สดสำเร็จ"</span> ในระบบ AI Studio หมายถึงระบบได้สร้างหนังสั้น 9:16 สำเร็จ แล้วส่งเข้า <b>Feed สตรีมมิ่งภายในแอปพลิเคชัน (หน้าแรก)</b> เรียบร้อยแล้ว 
+                </p>
+                <p className="text-slate-300 leading-relaxed mt-1">
+                  เนื่องจาก YouTube ไม่อนุญาตให้แอปภายนอกเข้าถึงช่องส่วนตัวของท่านโดยไม่ได้รับอนุญาต OAuth (เพื่อความปลอดภัยของบัญชีท่าน)
+                </p>
+              </div>
+
+              <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
+                <h4 className="font-bold text-emerald-300 text-xs mb-2">
+                  ✅ วิธีนำคลิปไปลง YouTube Shorts (2 วิธี):
+                </h4>
+
+                <div className="space-y-3">
+                  <div className="p-3 bg-slate-900 rounded-xl border border-emerald-900/40">
+                    <span className="bg-emerald-500 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded mr-1.5">
+                      วิธีที่ 1 (แนะนำ - สะดวก 100%)
+                    </span>
+                    <strong className="text-slate-200">ดาวน์โหลด MP4 นำไปอัปโหลดบน YouTube Studio</strong>
+                    <ol className="list-decimal list-inside text-slate-300 mt-1.5 space-y-1 text-[11px]">
+                      <li>กดปุ่ม <b>"ดาวน์โหลด MP4 HD"</b> ด้านล่างเพื่อเซฟไฟล์ลงเครื่อง</li>
+                      <li>เปิด <a href="https://studio.youtube.com" target="_blank" rel="noopener noreferrer" className="text-red-400 underline font-bold">YouTube Studio (studio.youtube.com)</a></li>
+                      <li>กดปุ่ม <b>สร้าง (Create) ➔ อัปโหลดวิดีโอ (Upload Video)</b> แล้วเลือกไฟล์ MP4</li>
+                      <li>ใส่แฮชแท็ก <b>#Shorts #GagGhost #ผีตลก</b> เพื่อดันเข้า Feed YouTube Shorts</li>
+                    </ol>
+                  </div>
+
+                  <div className="p-3 bg-slate-900 rounded-xl border border-orange-900/40">
+                    <span className="bg-orange-500 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded mr-1.5">
+                      วิธีที่ 2 (Auto API)
+                    </span>
+                    <strong className="text-slate-200">ยิงอัตโนมัติ 100% ผ่าน YouTube Data API v3</strong>
+                    <p className="text-slate-300 mt-1 text-[11px] leading-relaxed">
+                      หากต้องการให้เซิร์ฟเวอร์ Render ยิงคลิปขึ้น YouTube Shorts อัตโนมัติ สามารถขอ OAuth 2.0 Credentials จาก <a href="https://console.cloud.google.com" target="_blank" rel="noopener noreferrer" className="text-orange-400 underline">Google Cloud Console</a> แล้วนำค่า <code className="bg-slate-800 px-1 text-orange-300">YOUTUBE_CLIENT_ID</code> และ <code className="bg-slate-800 px-1 text-orange-300">YOUTUBE_REFRESH_TOKEN</code> ไปวางไว้ใน Environment Variables บน Render!
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-2">
+                <a
+                  href="https://studio.youtube.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-red-600 hover:bg-red-500 text-white font-black text-xs px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 shadow-lg"
+                >
+                  <ExternalLink className="w-4 h-4" /> เปิด YouTube Studio
+                </a>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      setShowYouTubeModal(false);
+                      handleStartExport();
+                    }}
+                    disabled={isExporting}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 shadow-lg active:scale-95 disabled:opacity-50"
+                  >
+                    <Download className="w-4 h-4 animate-bounce" /> ดาวน์โหลด MP4 HD
+                  </button>
+
+                  <button
+                    onClick={() => setShowYouTubeModal(false)}
+                    className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs px-4 py-2 rounded-xl"
+                  >
+                    เข้าใจแล้ว
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Live Video Rendering & Download Modal Overlay */}
+      {isExporting && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex justify-center items-center p-4">
+          <div className="bg-slate-900 border-2 border-emerald-500/80 w-full max-w-md rounded-3xl p-6 text-center text-slate-100 shadow-2xl">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-950/80 border-2 border-emerald-400 flex items-center justify-center">
+              <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
+            </div>
+            
+            <h3 className="text-lg font-black text-emerald-300 mb-1">
+              กำลังเรนเดอร์และสร้างไฟล์วิดีโอ 9:16 HD...
+            </h3>
+            
+            <p className="text-xs text-slate-400 mb-4">
+              {exportStatusText || 'กำลังประมวลผลวิดีโอ...'}
+            </p>
+
+            {/* Progress Bar */}
+            <div className="w-full bg-slate-950 h-3 rounded-full overflow-hidden border border-slate-800 mb-3">
+              <div
+                className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full transition-all duration-300"
+                style={{ width: `${exportProgress}%` }}
+              />
+            </div>
+
+            <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
+              <span>สถานะ: {exportProgress}%</span>
+              <span>กรุณารอไฟล์เด้งดาวน์โหลดอัตโนมัติ</span>
+            </div>
           </div>
         </div>
       )}

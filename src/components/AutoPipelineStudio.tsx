@@ -43,7 +43,7 @@ export const AutoPipelineStudio: React.FC<Props> = ({
     { stepNumber: 2, name: 'ขั้นที่ 2: ทำเสียงพากย์ (ElevenLabs / Gemini TTS)', description: 'เจนเสียงพากย์ไทยตื่นเต้น สยองขวัญ + เอฟเฟกต์ sound effects', status: 'idle' },
     { stepNumber: 3, name: 'ขั้นที่ 3: สร้างภาพ/วิดีโอ (Visual Prompt Generator)', description: 'เจนภาพเฟรมคลิปสยองขวัญแนวตั้ง 9:16 ตามแต่ละฉาก', status: 'idle' },
     { stepNumber: 4, name: 'ขั้นที่ 4: ตัดต่อและรวมไฟล์ (MoviePy Engine)', description: 'รวมภาพ วิดีโอ เสียงพากย์ BGM และใส่ซับไตเติ้ลคาราโอเกะ', status: 'idle' },
-    { stepNumber: 5, name: 'ขั้นที่ 5: อัปโหลด Cloud & ขึ้น Feed อัตโนมัติ', description: 'ส่งไฟล์เข้า Cloud Storage และพุชขึ้นหน้า Feed ให้คนดูทันที 100%', status: 'idle' },
+    { stepNumber: 5, name: 'ขั้นที่ 5: เผยแพร่ลง In-App Feed + เตรียมส่งออก YouTube Shorts / TikTok', description: 'เผยแพร่ขึ้น Feed สตรีมมิ่งสดในแอป 100% พร้อมเตรียมไฟล์สำหรับยิงเข้า YouTube Shorts / TikTok', status: 'idle' },
   ]);
 
   const addLog = (message: string, level: 'info' | 'success' | 'warning' | 'error' = 'info') => {
@@ -114,8 +114,9 @@ export const AutoPipelineStudio: React.FC<Props> = ({
 
       await new Promise(r => setTimeout(r, 800));
 
-      setSteps(prev => prev.map(s => s.stepNumber === 5 ? { ...s, status: 'completed', detail: 'เผยแพร่ขึ้นหน้า Feed สดสำเร็จ!' } : s));
-      addLog(`🎉 [Step 5 สำเร็จ] หนังสั้นเรื่องใหม่ "${data.story.title}" โผล่บน Feed สตรีมมิ่งทันที!`, 'success');
+      setSteps(prev => prev.map(s => s.stepNumber === 5 ? { ...s, status: 'completed', detail: 'เผยแพร่ขึ้นหน้า Feed ในแอปเรียบร้อย' } : s));
+      addLog(`🎉 [Step 5 สำเร็จ] หนังสั้นเรื่องใหม่ "${data.story.title}" โผล่บน Feed สตรีมมิ่งในแอปเรียบร้อย!`, 'success');
+      addLog(`📱 ต้องการนำคลิปไปอัปโหลดลง YouTube Shorts / TikTok? ไปที่แท็บ "ศูนย์สร้างรายได้ ($)" เพื่อดาวน์โหลด MP4 หรือกดส่งออกได้เลย!`, 'warning');
 
       // Publish to app global feed state
       onStoryPublished(data.story);

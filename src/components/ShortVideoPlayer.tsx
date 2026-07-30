@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ShortStory, Scene, Comment } from '../types';
 import { soundEngine } from '../utils/soundEngine';
+import { exportShortVideoMP4 } from '../utils/videoExporter';
 import {
   Play,
   Pause,
@@ -19,7 +20,9 @@ import {
   Sparkles,
   Award,
   Radio,
-  Vote
+  Vote,
+  Download,
+  Loader2
 } from 'lucide-react';
 
 interface Props {
@@ -55,6 +58,29 @@ export const ShortVideoPlayer: React.FC<Props> = ({
   const [showTipModal, setShowTipModal] = useState<boolean>(false);
   const [selectedTwist, setSelectedTwist] = useState<string | null>(story.winningTwist || null);
   const [aspectRatioMode, setAspectRatioMode] = useState<'9:16' | '16:9'>('9:16');
+  const [isDownloading, setIsDownloading] = useState<boolean>(false);
+  const [downloadProgress, setDownloadProgress] = useState<number>(0);
+  const [downloadStatusText, setDownloadStatusText] = useState<string>('');
+
+  const handleDownloadMP4 = async () => {
+    setIsDownloading(true);
+    setDownloadProgress(5);
+    setDownloadStatusText('กำลังเตรียมเรนเดอร์วิดีโอ 9:16...');
+
+    try {
+      await exportShortVideoMP4(story, (percent, status) => {
+        setDownloadProgress(percent);
+        setDownloadStatusText(status);
+      });
+    } catch (err) {
+      console.error(err);
+      alert('เกิดข้อผิดพลาดในการดาวน์โหลดวิดีโอ');
+    } finally {
+      setTimeout(() => {
+        setIsDownloading(false);
+      }, 1500);
+    }
+  };
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -457,6 +483,21 @@ export const ShortVideoPlayer: React.FC<Props> = ({
                 แชร์
               </span>
             </button>
+
+            {/* Download MP4 HD Button */}
+            <button
+              onClick={handleDownloadMP4}
+              disabled={isDownloading}
+              className="flex flex-col items-center group"
+              title="ดาวน์โหลดไฟล์วิดีโอ MP4 HD"
+            >
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-600 to-teal-700 text-white hover:scale-110 border border-emerald-400/80 flex items-center justify-center transition-all shadow-lg shadow-emerald-950">
+                <Download className="w-5 h-5 animate-bounce" />
+              </div>
+              <span className="text-[10px] font-bold text-emerald-300 mt-1">
+                โหลด MP4
+              </span>
+            </button>
           </div>
         </div>
 
@@ -622,6 +663,38 @@ export const ShortVideoPlayer: React.FC<Props> = ({
             >
               ยกเลิก
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Live Video Render & Export Progress Modal */}
+      {isDownloading && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex justify-center items-center p-4">
+          <div className="bg-slate-900 border-2 border-emerald-500/80 w-full max-w-md rounded-3xl p-6 text-center text-slate-100 shadow-2xl">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-950/80 border-2 border-emerald-400 flex items-center justify-center">
+              <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
+            </div>
+
+            <h3 className="text-lg font-black text-emerald-300 mb-1">
+              กำลังเรนเดอร์และสร้างไฟล์วิดีโอ 9:16 HD...
+            </h3>
+
+            <p className="text-xs text-slate-400 mb-4">
+              {downloadStatusText || 'กำลังประมวลผลวิดีโอ...'}
+            </p>
+
+            {/* Progress Bar */}
+            <div className="w-full bg-slate-950 h-3 rounded-full overflow-hidden border border-slate-800 mb-3">
+              <div
+                className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full transition-all duration-300"
+                style={{ width: `${downloadProgress}%` }}
+              />
+            </div>
+
+            <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
+              <span>สถานะ: {downloadProgress}%</span>
+              <span>กรุณารอไฟล์เด้งดาวน์โหลดอัตโนมัติ</span>
+            </div>
           </div>
         </div>
       )}

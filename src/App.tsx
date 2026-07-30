@@ -108,6 +108,7 @@ export default function App() {
           <MonetizationHub
             coins={coins}
             onTopUpCoins={handleTopUpCoins}
+            stories={stories}
           />
         )}
 
