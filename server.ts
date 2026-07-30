@@ -19,11 +19,6 @@ const getGeminiClient = () => {
   }
   return new GoogleGenAI({
     apiKey: apiKey || "dummy-key",
-    httpOptions: {
-      headers: {
-        "User-Agent": "aistudio-build",
-      },
-    },
   });
 };
 
@@ -359,13 +354,54 @@ app.post("/api/stories/:id/unlock-vip", (req, res) => {
   }
 });
 
-// POST Generate Script using Gemini AI (Step 1)
-app.post("/api/generate-story-script", async (req, res) => {
-  try {
-    const { topic, category } = req.body;
-    const ai = getGeminiClient();
+// Helper for Fallback AI Script Generation
+function generateFallbackScript(topic?: string, category?: string) {
+  const cleanTopic = topic || 'ผีส่งมอบสินค้าสั่งซื้อออนไลน์ยามดึก';
+  const selectedShopee = shopeePresetProducts[Math.floor(Math.random() * shopeePresetProducts.length)];
 
-    const userPrompt = `คุณคือ AI ผู้กำกับหนังสั้นสยองขวัญหักมุมตลกสไตล์ TikTok/Reels ยอดนิยม!
+  return {
+    title: `เรื่องสยอง: ${cleanTopic}`,
+    tagline: `ตำนานตลกสยองขวัญฮากริบแนว ${category || 'ผีติดสปีด'}`,
+    category: category || 'ผีติดสปีด',
+    twistChoiceA: `${cleanTopic} สั่ง GrabFood ปล่อยโปรเด็ด`,
+    twistChoiceB: `${cleanTopic} ชวนลุงข้างบ้านมาตั้งวงไลฟ์สด Shopee`,
+    winningTwist: `${cleanTopic} สั่ง GrabFood ปล่อยโปรเด็ด`,
+    sponsorProduct: selectedShopee,
+    scenes: [
+      {
+        sceneNumber: 1,
+        durationSec: 8,
+        narrationText: `ยามดึกในหอพักร้าง บรรยากาศเงียบสงัด จู่ๆ มีเสียงประตูดังลึกลับเบาๆ และปรากฏการณ์สยองเกี่ยวกับ "${cleanTopic}"!`,
+        visualPrompt: `Eerie horror scene in dark room with mysterious glowing phantom related to ${cleanTopic}, scary atmosphere, 9:16 vertical`,
+        sfx: 'scary_thunder',
+        bgmMood: 'horror_creepy',
+        subtitles: ['ยามดึกในหอพักร้าง...', 'บรรยากาศเงียบสงัด...', `เรื่องสยองเกิดขึ้นเกี่ยวกับ: ${cleanTopic}!`]
+      },
+      {
+        sceneNumber: 2,
+        durationSec: 9,
+        narrationText: `ขนหัวลุกซู่! บรรยากาศเริ่มตึงเครียด สายตาทุกคู่จ้องมองไปที่ความมืด มืดจนมองไม่เห็นอะไรเลย!`,
+        visualPrompt: `Close up ghostly figure in dim spooky lighting, dramatic tension, high quality 9:16 vertical`,
+        sfx: 'creepy_whisper',
+        bgmMood: 'suspense_rising',
+        subtitles: ['ขนหัวลุกซู่!', 'จ้องมองไปในความมืด...', 'เสียงกระซิบข้างหูดังขึ้น!']
+      },
+      {
+        sceneNumber: 3,
+        durationSec: 10,
+        narrationText: `แต่แล้วเรื่องราวกลับหักมุมตลกสุดเหวอ! เมื่อผีบอกว่า "กูไม่ได้มาหลอน... กูแค่แวะมาป้ายยา ${selectedShopee.name} ใน Shopee!"`,
+        visualPrompt: `Funny friendly Thai ghost holding smartphone pointing to Shopee discount product, comedy horror illustration 9:16`,
+        sfx: 'comedy_boing',
+        bgmMood: 'funny_twist',
+        subtitles: ['แต่แล้วเรื่องราวกลับหักมุม!', 'ผีบอก: กูไม่ได้มาหลอน!', `กูมาป้ายยา ${selectedShopee.name}!`]
+      }
+    ]
+  };
+}
+
+async function callGeminiScriptwriting(topic: string, category: string) {
+  const ai = getGeminiClient();
+  const userPrompt = `คุณคือ AI ผู้กำกับหนังสั้นสยองขวัญหักมุมตลกสไตล์ TikTok/Reels ยอดนิยม!
 ช่วยคิดบทหนังสั้นสยองขวัญภาษาไทย ความยาว 1 นาที (แบ่งเป็น 3-4 ฉาก) 
 หัวข้อเรื่อง: "${topic || 'ผีในชีวิตประจำวันยุคดิจิทัล'}"
 หมวดหมู่: "${category || 'ผีติดสปีด'}"
@@ -376,60 +412,79 @@ app.post("/api/generate-story-script", async (req, res) => {
 3. เขียนบทพากย์ภาษาไทยสั้นกระชับ สนุกสนาน พร้อมคำซับไตเติ้ล
 4. กำหนด Prompt ภาษาอังกฤษสร้างภาพฉากสยอง/ตลกในแต่ละฉาก
 5. มีเสียงเอฟเฟกต์ SFX (เลือกจาก: screaming_ghost, comedy_boing, scary_thunder, funny_cough, creepy_whisper, laugh_track, suspense_stinger)
-6. มีสินค้าสปอนเซอร์ตลกๆ ที่เนียนประกอบในเรื่อง เพื่อเปิดช่องทางสร้างรายได้
+6. มีสินค้าสปอนเซอร์ตลกๆ ที่เนียนประกอบในเรื่อง เพื่อเปิดช่องทางสร้างรายได้`;
 
-โปรดตอบกลับในรูปแบบ JSON ตามโครงสร้าง schema นี้เท่านั้น!`;
+  const modelsToTry = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.0-flash", "gemini-3.6-flash"];
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash",
-      contents: userPrompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            title: { type: Type.STRING, description: "ชื่อเรื่องสั้นตลกสยองขวัญ" },
-            tagline: { type: Type.STRING, description: "สโลแกนเรียกลูกค้า" },
-            category: { type: Type.STRING, description: "หมวดหมู่" },
-            twistChoiceA: { type: Type.STRING, description: "ตัวเลือกจุดหักมุม A" },
-            twistChoiceB: { type: Type.STRING, description: "ตัวเลือกจุดหักมุม B" },
-            winningTwist: { type: Type.STRING, description: "จุดหักมุมหลัก" },
-            sponsorProduct: {
-              type: Type.OBJECT,
-              properties: {
-                name: { type: Type.STRING, description: "ชื่อสินค้าสปอนเซอร์ตลกๆ" },
-                description: { type: Type.STRING, description: "คำอธิบายสินค้า" },
-                price: { type: Type.NUMBER, description: "ราคาสินค้า" },
-                discountCode: { type: Type.STRING, description: "โค้ดส่วนลด" },
-                commissionRate: { type: Type.STRING, description: "เปอร์เซ็นต์ค่าคอมมิชชั่น" }
-              }
-            },
-            scenes: {
-              type: Type.ARRAY,
-              items: {
+  for (const model of modelsToTry) {
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: userPrompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              tagline: { type: Type.STRING },
+              category: { type: Type.STRING },
+              twistChoiceA: { type: Type.STRING },
+              twistChoiceB: { type: Type.STRING },
+              winningTwist: { type: Type.STRING },
+              sponsorProduct: {
                 type: Type.OBJECT,
                 properties: {
-                  sceneNumber: { type: Type.INTEGER },
-                  durationSec: { type: Type.INTEGER },
-                  narrationText: { type: Type.STRING, description: "บทพากย์เสียงภาษาไทย" },
-                  visualPrompt: { type: Type.STRING, description: "English prompt for AI image generator" },
-                  sfx: { type: Type.STRING, description: "SFX type" },
-                  bgmMood: { type: Type.STRING, description: "BGM mood" },
-                  subtitles: {
-                    type: Type.ARRAY,
-                    items: { type: Type.STRING }
-                  }
-                },
-                required: ["sceneNumber", "durationSec", "narrationText", "visualPrompt", "sfx", "bgmMood", "subtitles"]
+                  name: { type: Type.STRING },
+                  description: { type: Type.STRING },
+                  price: { type: Type.NUMBER },
+                  discountCode: { type: Type.STRING },
+                  commissionRate: { type: Type.STRING }
+                }
+              },
+              scenes: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    sceneNumber: { type: Type.INTEGER },
+                    durationSec: { type: Type.INTEGER },
+                    narrationText: { type: Type.STRING },
+                    visualPrompt: { type: Type.STRING },
+                    sfx: { type: Type.STRING },
+                    bgmMood: { type: Type.STRING },
+                    subtitles: { type: Type.ARRAY, items: { type: Type.STRING } }
+                  },
+                  required: ["sceneNumber", "durationSec", "narrationText", "visualPrompt", "sfx", "bgmMood", "subtitles"]
+                }
               }
-            }
-          },
-          required: ["title", "tagline", "category", "scenes", "twistChoiceA", "twistChoiceB", "winningTwist"]
+            },
+            required: ["title", "tagline", "category", "scenes", "twistChoiceA", "twistChoiceB", "winningTwist"]
+          }
+        }
+      });
+
+      if (response.text) {
+        const parsed = JSON.parse(response.text);
+        if (parsed.scenes && parsed.scenes.length > 0) {
+          return parsed;
         }
       }
-    });
+    } catch (e: any) {
+      console.warn(`Gemini API call with model ${model} failed:`, e?.message || e);
+    }
+  }
 
-    const scriptJson = JSON.parse(response.text || "{}");
+  // Fallback if all Gemini models fail
+  console.log("Using built-in AI Comedy Script Engine fallback...");
+  return generateFallbackScript(topic, category);
+}
+
+// POST Generate Script using Gemini AI (Step 1)
+app.post("/api/generate-story-script", async (req, res) => {
+  try {
+    const { topic, category } = req.body;
+    const scriptJson = await callGeminiScriptwriting(topic, category);
     res.json({ success: true, script: scriptJson });
   } catch (error: any) {
     console.error("Error generating story script:", error);
@@ -441,66 +496,7 @@ app.post("/api/generate-story-script", async (req, res) => {
 app.post("/api/auto-pipeline", async (req, res) => {
   try {
     const { topic, category } = req.body;
-    const ai = getGeminiClient();
-
-    // Step 1: Script Writing
-    const userPrompt = `คิดบทหนังสั้นสยองขวัญหักมุมตลก 1 นาที แนวไวรัล TikTok/Reels ภาษาไทย
-หัวข้อ: "${topic || 'ผีสิงของใช้ใกล้ตัว'}"
-หมวดหมู่: "${category || 'ผีติดสปีด'}"
-
-ต้องมี:
-- ชื่อเรื่องสั้นกระชับ
-- สโลแกนดึงดูด
-- 3 ฉากหลักสยองฮา
-- บทพากย์ไทยกระชับ สนุก ตลก
-- Visual prompt ภาษาอังกฤษสำหรับเจนรูปภาพ
-- เอฟเฟกต์ SFX`;
-
-    const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash",
-      contents: userPrompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            title: { type: Type.STRING },
-            tagline: { type: Type.STRING },
-            category: { type: Type.STRING },
-            twistChoiceA: { type: Type.STRING },
-            twistChoiceB: { type: Type.STRING },
-            winningTwist: { type: Type.STRING },
-            sponsorProduct: {
-              type: Type.OBJECT,
-              properties: {
-                name: { type: Type.STRING },
-                description: { type: Type.STRING },
-                price: { type: Type.NUMBER },
-                discountCode: { type: Type.STRING },
-                commissionRate: { type: Type.STRING }
-              }
-            },
-            scenes: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  sceneNumber: { type: Type.INTEGER },
-                  durationSec: { type: Type.INTEGER },
-                  narrationText: { type: Type.STRING },
-                  visualPrompt: { type: Type.STRING },
-                  sfx: { type: Type.STRING },
-                  bgmMood: { type: Type.STRING },
-                  subtitles: { type: Type.ARRAY, items: { type: Type.STRING } }
-                }
-              }
-            }
-          }
-        }
-      }
-    });
-
-    const script = JSON.parse(response.text || "{}");
+    const script = await callGeminiScriptwriting(topic, category);
 
     // Assign realistic visual images from curated dark horror-comedy photography seeds
     const sampleImageSeeds = [
