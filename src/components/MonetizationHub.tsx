@@ -164,6 +164,20 @@ export const MonetizationHub: React.FC<Props> = ({ coins, onTopUpCoins, stories 
     alert(`เลือกสินค้า Shopee ป้ายยา: "${product.name}" สำเร็จ!\nระบบได้ผูก Shopee Affiliate ID (${shopeeAffiliateId}) ของคุณเข้ากับคลิป AI หนังสั้นเรียบร้อยแล้ว`);
   };
 
+  const handleCopyPinnedComment = (targetStory?: ShortStory) => {
+    const storyToUse = targetStory || stories[0];
+    const sponsor = storyToUse?.sponsorProduct || sponsorsList[0];
+    const textToCopy = `👻 [หนังสั้นสยองขวัญตลก] ${storyToUse?.title || 'หนังสั้นสยองขวัญหักมุม'}
+🛍️ สินค้า Shopee ป้ายยาในคลิป: ${sponsor.name}
+👉 คลิกสั่งซื้อตรงนี้เลย: ${sponsor.linkUrl || 'https://shopee.co.th'}
+🎁 โค้ดส่วนลดพิเศษ: ${sponsor.discountCode} (รับส่วนลด ${sponsor.commissionRate})
+
+#Shorts #GagGhostAI #ShopeeAffiliate #ผีตลก #หนังสั้นสยองขวัญ #ShopeeTH`;
+
+    navigator.clipboard.writeText(textToCopy);
+    alert(`📋 คัดลอกข้อความ + ลิงก์ Shopee เรียบร้อยแล้ว!\n\nนำข้อความนี้ไปวางใน "คอมเมนต์ปักหมุด (Pinned Comment)" หรือ "คำอธิบายคลิป (Description)" บน YouTube Shorts หรือ TikTok ได้เลยครับ!`);
+  };
+
   const handleStartExport = async (targetStory?: ShortStory) => {
     const storyToExport = targetStory || stories[0] || {
       id: 'demo-export',
@@ -724,76 +738,78 @@ export const MonetizationHub: React.FC<Props> = ({ coins, onTopUpCoins, stories 
             <div className="space-y-4 text-xs">
               <div className="bg-slate-950 p-4 rounded-2xl border border-red-900/50">
                 <h4 className="font-bold text-amber-300 text-xs mb-1">
-                  📌 ข้ออธิบายสำคัญ:
+                  📌 ข้ออธิบายสำคัญเกี่ยวกับคลิปและลิงก์ Shopee:
                 </h4>
                 <p className="text-slate-300 leading-relaxed">
-                  สถานะ <span className="text-emerald-400 font-bold">"ขึ้น Feed สดสำเร็จ"</span> ในระบบ AI Studio หมายถึงระบบได้สร้างหนังสั้น 9:16 สำเร็จ แล้วส่งเข้า <b>Feed สตรีมมิ่งภายในแอปพลิเคชัน (หน้าแรก)</b> เรียบร้อยแล้ว 
+                  1. <strong className="text-emerald-400">ภาพเคลื่อนไหวแนวตั้ง 9:16</strong>: ระบบเรนเดอร์วิดีโอ MP4 HD แบบไดนามิก (มี Effect ซูม Ken Burns, ละอองไฟวิญญาณ, แถบคลื่นเสียง และซับไตเติลไฮไลท์ Karaoke) ให้เรียบร้อย
                 </p>
-                <p className="text-slate-300 leading-relaxed mt-1">
-                  เนื่องจาก YouTube ไม่อนุญาตให้แอปภายนอกเข้าถึงช่องส่วนตัวของท่านโดยไม่ได้รับอนุญาต OAuth (เพื่อความปลอดภัยของบัญชีท่าน)
+                <p className="text-slate-300 leading-relaxed mt-1.5">
+                  2. <strong className="text-amber-400">ทำไมลิงก์ Shopee บนหน้าจอวิดีโอถึงกดไม่ได้?</strong>: ในระบบ YouTube Shorts / TikTok วิดีโอไฟล์ MP4 เป็นไฟล์ภาพ Pixel ตัวอักษรบนภาพจึงไม่สามารถคลิกได้เหมือนหน้าเว็บ HTML
+                </p>
+                <p className="text-slate-200 font-bold bg-amber-950/60 p-2.5 rounded-xl border border-amber-600/50 mt-2">
+                  💡 วิธีที่ครีเอเตอร์ทำ: นำลิงก์ Shopee Affiliate ไปวางไว้ใน <u>"คอมเมนต์ปักหมุด (Pinned Comment)"</u> หรือ <u>"คำอธิบายคลิป (Description)"</u> เพื่อให้ผู้ชมคลิกได้ 100%!
                 </p>
               </div>
 
               <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
                 <h4 className="font-bold text-emerald-300 text-xs mb-2">
-                  ✅ วิธีนำคลิปไปลง YouTube Shorts (2 วิธี):
+                  ✅ ขั้นตอนการสร้างรายได้ป้ายยาบน YouTube Shorts (ง่าย 1-Click):
                 </h4>
 
                 <div className="space-y-3">
                   <div className="p-3 bg-slate-900 rounded-xl border border-emerald-900/40">
                     <span className="bg-emerald-500 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded mr-1.5">
-                      วิธีที่ 1 (แนะนำ - สะดวก 100%)
+                      ขั้นตอนที่ 1
                     </span>
-                    <strong className="text-slate-200">ดาวน์โหลด MP4 นำไปอัปโหลดบน YouTube Studio</strong>
-                    <ol className="list-decimal list-inside text-slate-300 mt-1.5 space-y-1 text-[11px]">
-                      <li>กดปุ่ม <b>"ดาวน์โหลด MP4 HD"</b> ด้านล่างเพื่อเซฟไฟล์ลงเครื่อง</li>
-                      <li>เปิด <a href="https://studio.youtube.com" target="_blank" rel="noopener noreferrer" className="text-red-400 underline font-bold">YouTube Studio (studio.youtube.com)</a></li>
-                      <li>กดปุ่ม <b>สร้าง (Create) ➔ อัปโหลดวิดีโอ (Upload Video)</b> แล้วเลือกไฟล์ MP4</li>
-                      <li>ใส่แฮชแท็ก <b>#Shorts #GagGhost #ผีตลก</b> เพื่อดันเข้า Feed YouTube Shorts</li>
-                    </ol>
+                    <strong className="text-slate-200">ดาวน์โหลด MP4 HD ลงเครื่อง</strong>
+                    <p className="text-slate-400 text-[11px] mt-1">กดปุ่ม "ดาวน์โหลด MP4 HD" ด้านล่าง เพื่อเซฟวิดีโอแนวตั้ง 9:16</p>
                   </div>
 
                   <div className="p-3 bg-slate-900 rounded-xl border border-orange-900/40">
                     <span className="bg-orange-500 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded mr-1.5">
-                      วิธีที่ 2 (Auto API)
+                      ขั้นตอนที่ 2
                     </span>
-                    <strong className="text-slate-200">ยิงอัตโนมัติ 100% ผ่าน YouTube Data API v3</strong>
-                    <p className="text-slate-300 mt-1 text-[11px] leading-relaxed">
-                      หากต้องการให้เซิร์ฟเวอร์ Render ยิงคลิปขึ้น YouTube Shorts อัตโนมัติ สามารถขอ OAuth 2.0 Credentials จาก <a href="https://console.cloud.google.com" target="_blank" rel="noopener noreferrer" className="text-orange-400 underline">Google Cloud Console</a> แล้วนำค่า <code className="bg-slate-800 px-1 text-orange-300">YOUTUBE_CLIENT_ID</code> และ <code className="bg-slate-800 px-1 text-orange-300">YOUTUBE_REFRESH_TOKEN</code> ไปวางไว้ใน Environment Variables บน Render!
-                    </p>
+                    <strong className="text-slate-200">คัดลอกลิงก์ Shopee ปักหมุด</strong>
+                    <p className="text-slate-400 text-[11px] mt-1">กดปุ่ม "📋 คัดลอกลิงก์ Shopee ปักหมุด" แล้วนำไปวางในช่องคอมเมนต์ใต้คลิป YouTube Shorts</p>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between pt-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
                 <a
                   href="https://studio.youtube.com"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="bg-red-600 hover:bg-red-500 text-white font-black text-xs px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 shadow-lg"
+                  className="bg-red-600 hover:bg-red-500 text-white font-black text-xs px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 shadow-lg"
                 >
                   <ExternalLink className="w-4 h-4" /> เปิด YouTube Studio
                 </a>
 
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => handleCopyPinnedComment()}
+                    className="bg-amber-600 hover:bg-amber-500 text-slate-950 font-black text-xs px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 shadow-lg active:scale-95"
+                  >
+                    <Link2 className="w-4 h-4" /> คัดลอกลิงก์ Shopee ปักหมุด
+                  </button>
+
                   <button
                     onClick={() => {
                       setShowYouTubeModal(false);
                       handleStartExport();
                     }}
                     disabled={isExporting}
-                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 shadow-lg active:scale-95 disabled:opacity-50"
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 shadow-lg active:scale-95 disabled:opacity-50"
                   >
                     <Download className="w-4 h-4 animate-bounce" /> ดาวน์โหลด MP4 HD
                   </button>
-
-                  <button
-                    onClick={() => setShowYouTubeModal(false)}
-                    className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs px-4 py-2 rounded-xl"
-                  >
-                    เข้าใจแล้ว
-                  </button>
                 </div>
+                <button
+                  onClick={() => setShowYouTubeModal(false)}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs px-3.5 py-2 rounded-xl"
+                >
+                  เข้าใจแล้ว
+                </button>
               </div>
             </div>
           </div>

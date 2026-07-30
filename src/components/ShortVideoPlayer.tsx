@@ -22,7 +22,8 @@ import {
   Radio,
   Vote,
   Download,
-  Loader2
+  Loader2,
+  Link2
 } from 'lucide-react';
 
 interface Props {
@@ -61,6 +62,16 @@ export const ShortVideoPlayer: React.FC<Props> = ({
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
   const [downloadProgress, setDownloadProgress] = useState<number>(0);
   const [downloadStatusText, setDownloadStatusText] = useState<string>('');
+
+  const handleCopyPinnedComment = () => {
+    const sponsor = story.sponsorProduct;
+    const textToCopy = `👻 [หนังสั้นสยองขวัญตลก] ${story.title}
+${sponsor ? `🛍️ สินค้า Shopee ป้ายยาในคลิป: ${sponsor.name}\n👉 คลิกสั่งซื้อตรงนี้เลย: ${sponsor.linkUrl}\n🎁 โค้ดส่วนลดพิเศษ: ${sponsor.discountCode}\n` : ''}
+#Shorts #GagGhostAI #ShopeeAffiliate #ผีตลก #หนังสั้นสยองขวัญ #ShopeeTH`;
+
+    navigator.clipboard.writeText(textToCopy);
+    alert(`📋 คัดลอกข้อความ + ลิงก์ Shopee เรียบร้อยแล้ว!\n\nนำข้อความนี้ไปวางใน "คอมเมนต์ปักหมุด (Pinned Comment)" หรือ "คำอธิบายคลิป (Description)" บน YouTube Shorts เพื่อให้ผู้ชมคลิกสั่งซื้อได้ 100%!`);
+  };
 
   const handleDownloadMP4 = async () => {
     setIsDownloading(true);
@@ -481,6 +492,20 @@ export const ShortVideoPlayer: React.FC<Props> = ({
               </div>
               <span className="text-[10px] font-bold text-slate-200 mt-1">
                 แชร์
+              </span>
+            </button>
+
+            {/* Copy Pinned Link Button */}
+            <button
+              onClick={handleCopyPinnedComment}
+              className="flex flex-col items-center group"
+              title="คัดลอกลิงก์ Shopee ไปวางในคอมเมนต์ปักหมุด YouTube Shorts"
+            >
+              <div className="w-10 h-10 rounded-full bg-amber-950/80 hover:bg-amber-900 border border-amber-500/80 text-amber-300 flex items-center justify-center transition-all shadow-lg">
+                <Link2 className="w-5 h-5 text-amber-400" />
+              </div>
+              <span className="text-[10px] font-bold text-amber-300 mt-1">
+                ลิงก์ปักหมุด
               </span>
             </button>
 

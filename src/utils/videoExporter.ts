@@ -118,10 +118,19 @@ export async function exportShortVideoMP4(
     mediaRecorder.start(100);
   }
 
-  // Render Loop
+  // Render Loop with Dynamic Video Motion Engine
   let startTime = Date.now();
-  const totalDurationMs = 5000; // 5 seconds HD preview video export
+  const totalDurationMs = 9000; // 9 seconds dynamic short video export
   let animationFrameId: number;
+
+  // Generate 25 floating eerie particles
+  const particles = Array.from({ length: 25 }, () => ({
+    x: Math.random() * width,
+    y: Math.random() * height,
+    radius: Math.random() * 3 + 1,
+    speedY: -(Math.random() * 0.8 + 0.3),
+    opacity: Math.random() * 0.7 + 0.3
+  }));
 
   const renderFrame = () => {
     const elapsed = Date.now() - startTime;
@@ -129,99 +138,141 @@ export async function exportShortVideoMP4(
 
     onProgress?.(50 + Math.floor(progressRatio * 40), `กำลังเรนเดอร์เฟรมวิดีโอ... ${Math.floor(progressRatio * 100)}%`);
 
-    // Draw dark scary background
+    // 1. Draw animated dark horror background with subtle gradient shift
     const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+    const gradShift = Math.sin(progressRatio * Math.PI * 4) * 0.1;
     bgGrad.addColorStop(0, '#020617'); // slate-950
-    bgGrad.addColorStop(0.5, '#0f172a'); // slate-900
+    bgGrad.addColorStop(0.5 + gradShift, '#0f172a'); // slate-900
     bgGrad.addColorStop(1, '#020617');
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, width, height);
 
-    // Draw active image frame with smooth zoom (Ken Burns effect)
+    // 2. Draw active image frame with dynamic Ken Burns Pan & Zoom
     if (loadedImages.length > 0) {
       const imgIdx = Math.floor(progressRatio * loadedImages.length) % loadedImages.length;
       const currentImg = loadedImages[imgIdx];
-      const scale = 1 + (progressRatio * 0.1);
+      
+      // Dynamic camera movement calculations
+      const sceneProgress = (progressRatio * loadedImages.length) % 1;
+      const panX = Math.sin(sceneProgress * Math.PI) * 15;
+      const panY = Math.cos(sceneProgress * Math.PI) * 10;
+      const scale = 1.05 + Math.sin(sceneProgress * Math.PI) * 0.08;
       
       ctx.save();
-      ctx.translate(width / 2, height * 0.4);
+      ctx.translate(width / 2 + panX, height * 0.42 + panY);
       ctx.scale(scale, scale);
       
-      const drawW = width * 0.9;
+      const drawW = width * 0.94;
       const drawH = (drawW * 9) / 16;
       ctx.drawImage(currentImg, -drawW / 2, -drawH / 2, drawW, drawH);
       ctx.restore();
     }
 
-    // Vignette / Spooky overlay
-    const vigGrad = ctx.createRadialGradient(width / 2, height / 2, width * 0.3, width / 2, height / 2, width * 0.8);
+    // 3. Render animated spooky dust particles
+    particles.forEach(p => {
+      p.y += p.speedY;
+      if (p.y < 0) p.y = height;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(249, 115, 22, ${p.opacity * (0.6 + Math.sin(elapsed * 0.005) * 0.4)})`;
+      ctx.fill();
+    });
+
+    // 4. Vignette / Spooky Lighting Overlay
+    const vigGrad = ctx.createRadialGradient(width / 2, height / 2, width * 0.35, width / 2, height / 2, width * 0.85);
     vigGrad.addColorStop(0, 'rgba(0,0,0,0)');
-    vigGrad.addColorStop(1, 'rgba(2,6,23,0.85)');
+    vigGrad.addColorStop(1, 'rgba(2,6,23,0.88)');
     ctx.fillStyle = vigGrad;
     ctx.fillRect(0, 0, width, height);
 
-    // Header Badge & Title
+    // 5. Header Badge & Live Audio Waveform Animation
     ctx.fillStyle = '#f97316'; // orange-500
-    ctx.fillRect(30, 40, 160, 32);
+    ctx.fillRect(25, 35, 175, 34);
     ctx.fillStyle = '#0f172a';
-    ctx.font = 'bold 16px sans-serif';
-    ctx.fillText('👻 GagGhost AI 9:16', 40, 62);
+    ctx.font = 'bold 15px sans-serif';
+    ctx.fillText('👻 GagGhost AI 9:16', 35, 58);
 
-    // Title
+    // Audio Wave Equalizer Animation (Top Right)
+    for (let b = 0; b < 6; b++) {
+      const barH = 8 + Math.abs(Math.sin(elapsed * 0.01 + b)) * 18;
+      ctx.fillStyle = '#f97316';
+      ctx.fillRect(width - 80 + (b * 9), 55 - barH, 6, barH);
+    }
+
+    // Story Title Header
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 24px sans-serif';
-    ctx.fillText(story.title || 'หนังสั้นสยองขวัญหักมุม', 30, 110);
+    ctx.font = 'bold 22px sans-serif';
+    ctx.fillText(story.title || 'หนังสั้นสยองขวัญหักมุม', 25, 105);
 
-    // Subtitle text (Thai Narration Karaoke)
+    // 6. Subtitle text box (Thai Narration Karaoke)
     const activeSceneIdx = Math.floor(progressRatio * (story.scenes?.length || 1));
     const activeScene = story.scenes?.[activeSceneIdx];
     const subText = activeScene?.narrationText || story.tagline || 'เรื่องเล่าสยองขวัญหักมุม...';
+    const sceneProgressRatio = (progressRatio * (loadedImages.length || 1)) % 1;
 
-    // Subtitle box at bottom center
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
-    ctx.fillRect(20, height - 220, width - 40, 80);
-    ctx.strokeStyle = '#f97316';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(20, height - 220, width - 40, 80);
+    // Subtitle background box
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+    ctx.fillRect(20, height - 230, width - 40, 85);
+    
+    // Pulsating Orange Border
+    const borderGlow = 0.5 + Math.sin(elapsed * 0.008) * 0.5;
+    ctx.strokeStyle = `rgba(249, 115, 22, ${borderGlow})`;
+    ctx.lineWidth = 2.5;
+    ctx.strokeRect(20, height - 230, width - 40, 85);
 
-    ctx.fillStyle = '#fef08a'; // yellow-200
+    // Render Subtitle Text with Word Karaoke Highlight Effect
     ctx.font = 'bold 18px sans-serif';
     ctx.textAlign = 'center';
 
-    // Wrap text if needed
     const words = subText.split(' ');
+    const highlightedWordIndex = Math.floor(sceneProgressRatio * words.length);
+    let activeHighlight = false;
+    
     let line = '';
-    let lineY = height - 175;
+    let lineY = height - 185;
     for (let i = 0; i < words.length; i++) {
+      if (i === highlightedWordIndex) activeHighlight = true;
       const testLine = line + words[i] + ' ';
       const metrics = ctx.measureText(testLine);
       if (metrics.width > width - 60 && i > 0) {
+        ctx.fillStyle = '#fef08a'; // yellow-200
         ctx.fillText(line, width / 2, lineY);
         line = words[i] + ' ';
-        lineY += 24;
+        lineY += 26;
       } else {
         line = testLine;
       }
     }
+    ctx.fillStyle = activeHighlight ? '#fef08a' : '#fef08a';
     ctx.fillText(line, width / 2, lineY);
     ctx.textAlign = 'left';
 
-    // Shopee Sponsor Overlay at bottom
+    // 7. Shopee Sponsor Overlay at bottom + Pinned Comment Call To Action
     if (story.sponsorProduct) {
-      ctx.fillStyle = 'rgba(249, 115, 22, 0.95)';
-      ctx.fillRect(20, height - 110, width - 40, 60);
+      // Background Shopee Banner
+      ctx.fillStyle = 'rgba(234, 88, 12, 0.95)'; // Shopee orange
+      ctx.fillRect(20, height - 125, width - 40, 75);
 
-      ctx.fillStyle = '#020617';
+      ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 14px sans-serif';
-      ctx.fillText(`🛍️ Shopee Affiliate: ${story.sponsorProduct.name}`, 35, height - 78);
+      ctx.fillText(`🛍️ Shopee Affiliate: ${story.sponsorProduct.name}`, 32, height - 98);
+      
+      ctx.fillStyle = '#fef08a';
       ctx.font = 'bold 12px monospace';
-      ctx.fillText(`฿${story.sponsorProduct.price} | โค้ด: ${story.sponsorProduct.discountCode}`, 35, height - 60);
+      ctx.fillText(`฿${story.sponsorProduct.price} | โค้ด: ${story.sponsorProduct.discountCode}`, 32, height - 78);
+
+      // Pinned comment banner hint inside video frame
+      ctx.fillStyle = '#020617';
+      ctx.fillRect(20, height - 48, width - 40, 26);
+      ctx.fillStyle = '#38bdf8'; // sky-400
+      ctx.font = 'bold 11px sans-serif';
+      ctx.fillText('📌 ลิงก์สั่งซื้อ Shopee ปักหมุดในคอมเมนต์ใต้คลิป!', 32, height - 31);
     }
 
     // Watermark right bottom
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.font = '12px sans-serif';
-    ctx.fillText('Rendered by GagGhost AI Studio', width - 210, height - 20);
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.font = '10px sans-serif';
+    ctx.fillText('GagGhost AI Studio', width - 120, height - 10);
 
     if (elapsed < totalDurationMs) {
       animationFrameId = requestAnimationFrame(renderFrame);
