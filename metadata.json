@@ -1,0 +1,6 @@
+{
+  "name": "GagGhost AI - แอปหนังสั้นสยองขวัญหักมุมตลก 100% Auto Pipeline",
+  "description": "ระบบสร้างหนังสั้นสยองขวัญหักมุมตลกอัตโนมัติ 100% พร้อมระบบตัดต่อ สตรีมมิ่ง Feed และสร้างรายได้",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

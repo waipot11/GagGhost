@@ -1,0 +1,207 @@
+import { ShortStory } from '../types';
+
+export const INITIAL_STORIES: ShortStory[] = [
+  {
+    id: 'story-001',
+    title: 'ผีหลังตู้เย็นกูเกิลไฟต์',
+    tagline: 'ผีเฮี้ยนสยองขวัญหลอนกลางดึก แต่หิวหมูกระทะตอนตีสาม!',
+    category: 'ผีหอพัก',
+    aspectRatio: '9:16',
+    creator: 'GagGhost AI Bot #01',
+    createdAt: '10 นาทีที่แล้ว',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1509248961158-e54f6934749c?auto=format&fit=crop&w=800&q=80',
+    likesCount: 14200,
+    viewsCount: 89400,
+    sharesCount: 3100,
+    commentsCount: 482,
+    vipUnlocked: false,
+    isAutoPublished: true,
+    sponsorProduct: {
+      id: 'sp-01',
+      name: 'ผ้ายันต์กันผี 5G พร้อมโค้ดลด 50%',
+      description: 'ผ้ายันต์ดิสรัปชั่น ไล่ผีแบบไฮสปีด เสียบปลั๊ก USB-C ได้!',
+      price: 199,
+      discountCode: 'GAG50OFF',
+      linkUrl: '#',
+      bannerImage: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=300&q=80',
+      commissionRate: '35% (รับ 70 บาท/ชิ้น)',
+    },
+    twistChoiceA: 'ผีสิงตู้เย็นแล้วสั่ง GrabFood เอง',
+    twistChoiceB: 'ผีออกมาถามหาซอสมะเขือเทศที่หายไป',
+    winningTwist: 'ผีสิงตู้เย็นแล้วสั่ง GrabFood เอง',
+    scenes: [
+      {
+        id: 's1-1',
+        sceneNumber: 1,
+        durationSec: 8,
+        narrationText: 'คืนวันศุกร์ ณ หอพักร้างชั้น 4 นกกำลังนั่งปั่นงานตอนตีสาม จู่ๆ ไฟห้องก็กระพริบ และมีเสียงขูดหลังตู้เย็นดังขึ้น...',
+        visualPrompt: 'Dark dim student room at 3am with flickering fluorescent lights, creepy shadow emerging from behind an old refrigerator, horror cinematic lighting, vertical 9:16',
+        visualImageUrl: 'https://images.unsplash.com/photo-1509248961158-e54f6934749c?auto=format&fit=crop&w=800&q=80',
+        sfx: 'scary_thunder',
+        bgmMood: 'horror_creepy',
+        subtitles: ['คืนวันศุกร์ ณ หอพักร้าง', 'นกกำลังปั่นงานตอนตีสาม', 'ไฟเริ่มกระพริบสยองขวัญ...']
+      },
+      {
+        id: 's1-2',
+        sceneNumber: 2,
+        durationSec: 9,
+        narrationText: 'นกหยิบไม้ช็อตยุงขึ้นมาขู่ "ออกมานะผี! กูไหว้พระทุกวันพฤหัส!" ทันใดนั้น เงาดำหัวยาวก็ค่อยๆ คลานออกมาจากช่องใต้ตู้เย็น!',
+        visualPrompt: 'Scared Thai guy holding electric mosquito swatter pointing at tall dark phantom creepy ghost emerging, eerie atmosphere, comedy horror',
+        visualImageUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=800&q=80',
+        sfx: 'screaming_ghost',
+        bgmMood: 'suspense_rising',
+        subtitles: ['นกหยิบไม้ช็อตยุงขึ้นมาขู่!', 'กูไหว้พระทุกวันพฤหัสนะโว้ย!', 'เงาสยองค่อยๆ คลานออกมา!']
+      },
+      {
+        id: 's1-3',
+        sceneNumber: 3,
+        durationSec: 10,
+        narrationText: 'ผีส่งเสียงขู่ฟ่อออ... แล้วพูดยื่นหน้ามาใกล้ๆ "มึง... กูหิว... กูหยิบหมูสไลด์มึงไปกินต้มม่าม่าสองถุงแล้วนะ!"',
+        visualPrompt: 'Funny ghost face holding a empty instant noodle cup with sheepish expression, hilarious horror twist, dramatic close-up',
+        visualImageUrl: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=800&q=80',
+        sfx: 'funny_cough',
+        bgmMood: 'funny_twist',
+        subtitles: ['ผีส่งเสียงฟ่อออ...', 'มึง... กูหิว...', 'กูแอบกินหมูสไลด์มึงหมดแล้ว!']
+      },
+      {
+        id: 's1-4',
+        sceneNumber: 4,
+        durationSec: 11,
+        narrationText: 'นกตกใจตะโกน "อ้าวไอ้ผี! นั่นหมูชาบูตู! งั้นกูสั่งแอป GrabFood มึงต้องจ่ายคนละครึ่งด้วย!" ผีบอก "โอเค มึงกดรับส่วนลดโค้ด GAG50OFF ด้วยนะ!"',
+        visualPrompt: 'Guy and ghost sitting together looking at smartphone screen ordering food delivery with discount coupon overlay, neon green funny horror lighting',
+        visualImageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=800&q=80',
+        sfx: 'comedy_boing',
+        bgmMood: 'funny_twist',
+        subtitles: ['นั่นหมูชาบูของกู!', 'งั้นสั่ง GrabFood คนละครึ่ง!', 'ผีบอก: ใส่โค้ดส่วนลดด้วยนะ!']
+      }
+    ],
+    vipTwistScene: {
+      id: 's1-vip',
+      sceneNumber: 5,
+      durationSec: 8,
+      narrationText: '[ฉากพิเศษ VIP] ไรเดอร์มาส่งของ เปิดประตูมาเจอผี นึกว่าเป็นลูกค้าแต่งคอสเพลย์ เลยขอถ่ายรูปทำคอนเทนต์ TikTok ได้ยอดวิวล้านวิว!',
+      visualPrompt: 'Delivery driver taking selfie with scary ghost holding food bags, smiling cheerfully together, TikTok viral moment',
+      visualImageUrl: 'https://images.unsplash.com/photo-1514565131-fce0801e5785?auto=format&fit=crop&w=800&q=80',
+      sfx: 'laugh_track',
+      bgmMood: 'funny_twist',
+      subtitles: ['[ฉากพิเศษ VIP]', 'ไรเดอร์ขอถ่ายรูปคู่ทำ TikTok', 'ยอดวิวทะลุล้านวิวไปแล้ว!']
+    }
+  },
+  {
+    id: 'story-002',
+    title: 'กระสือ 5G หิวกระชายดำ',
+    tagline: 'ตำนานกระสือถอดหัวบินส่องไฟฉายไอโฟนหาของกินกลางทุ่งนา',
+    category: 'ผีติดสปีด',
+    aspectRatio: '9:16',
+    creator: 'GagGhost AI Bot #02',
+    createdAt: '25 นาทีที่แล้ว',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1508739773434-c26b3d09e071?auto=format&fit=crop&w=800&q=80',
+    likesCount: 28500,
+    viewsCount: 142000,
+    sharesCount: 8400,
+    commentsCount: 912,
+    vipUnlocked: true,
+    isAutoPublished: true,
+    sponsorProduct: {
+      id: 'sp-02',
+      name: 'ไฟฉายไล่ผีกระสือ 100,000 Lumens',
+      description: 'ไฟฉายพกพาสว่างจนกระสือแสบตา ต้องบินหนีไปนอน',
+      price: 299,
+      discountCode: 'LIGHTGHOST',
+      linkUrl: '#',
+      bannerImage: 'https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&w=300&q=80',
+      commissionRate: '40% (รับ 120 บาท/ชิ้น)',
+    },
+    twistChoiceA: 'กระสือติดโซลาร์เซลล์ที่หัวช่วยประหยัดไฟ',
+    twistChoiceB: 'กระสือบินไปไลฟ์ขายของใน Shopee',
+    winningTwist: 'กระสือบินไปไลฟ์ขายของใน Shopee',
+    scenes: [
+      {
+        id: 's2-1',
+        sceneNumber: 1,
+        durationSec: 8,
+        narrationText: 'ลุงสมพรขี่มอเตอร์ไซค์กลับบ้านตอนกลางคืน ระหว่างทางมองขึ้นไปบนฟ้า เห็นดวงไฟสีเขียวส่องสว่างลอยเคว้งกระพริบวูบวาบ!',
+        visualPrompt: 'Night rural Thai road, old man riding motorcycle looking up at glowing green flying ghost head floating in dark sky, spooky atmosphere',
+        visualImageUrl: 'https://images.unsplash.com/photo-1508739773434-c26b3d09e071?auto=format&fit=crop&w=800&q=80',
+        sfx: 'scary_thunder',
+        bgmMood: 'horror_creepy',
+        subtitles: ['ลุงสมพรขี่มอเตอร์ไซค์ยามดึก', 'มองขึ้นไปบนท้องฟ้า...', 'เห็นไฟสีเขียวลอยส่องสว่าง!']
+      },
+      {
+        id: 's2-2',
+        sceneNumber: 2,
+        durationSec: 9,
+        narrationText: 'ลุงตกใจตัวเกร็ง! "กระสือแน่ๆ! ยายสายถอดหัวบินแล้ว!" แต่พอส่องไฟฉายดูชัดๆ กลับเห็นกระสือหนีบไฟแหวนเซลฟี่ไว้ที่ไส้!',
+        visualPrompt: 'Flying female ghost head with glowing internal organs with a ring light attached for vlogging, hilarious high-tech Krasue ghost',
+        visualImageUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=800&q=80',
+        sfx: 'creepy_whisper',
+        bgmMood: 'suspense_rising',
+        subtitles: ['ยายสายถอดหัวบินแน่ๆ!', 'พอส่องไฟฉายดูชัดๆ...', 'กระสือติดไฟแหวนเซลฟี่ที่ไส้!']
+      },
+      {
+        id: 's2-3',
+        sceneNumber: 3,
+        durationSec: 10,
+        narrationText: 'กระสือตะโกนลงมา "ลุง! อย่าพึ่งวิ่ง! ช่วยกดเอฟออเดอร์ครีมหน้าขาวกับปลาร้าสับในไลฟ์ยายหน่อย! ส่งฟรีมีเก็บเงินปลายทาง!"',
+        visualPrompt: 'Floating ghost holding glowing smartphone live streaming to online viewers, funny ecommerce horror cartoon style',
+        visualImageUrl: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=800&q=80',
+        sfx: 'funny_cough',
+        bgmMood: 'funny_twist',
+        subtitles: ['กระสือตะโกน: ลุงอย่าเพิ่งวิ่ง!', 'กดสั่งปลาร้าสับในไลฟ์ยายหน่อย!', 'ส่งฟรี มีเก็บเงินปลายทาง!']
+      }
+    ]
+  },
+  {
+    id: 'story-003',
+    title: 'กุมารทองสั่งซื้อของออนไลน์',
+    tagline: 'เมื่อกุมารทองหอพักแอบใช้บัตรเครดิตเจ้าของห้อง F เสื้อผ้าเด็ก!',
+    category: 'ผีตลกร้าย',
+    aspectRatio: '9:16',
+    creator: 'GagGhost AI Bot #03',
+    createdAt: '1 ชั่วโมงที่แล้ว',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=800&q=80',
+    likesCount: 41200,
+    viewsCount: 210000,
+    sharesCount: 12900,
+    commentsCount: 1540,
+    vipUnlocked: false,
+    isAutoPublished: true,
+    sponsorProduct: {
+      id: 'sp-03',
+      name: 'น้ำแดงเฮลซ์บลูบอยยั่วกุมาร',
+      description: 'น้ำแดงกลิ่นจัสมิน ถวายปุ๊บ กุมารประทับใจไม่กวนใจตอนนอน',
+      price: 89,
+      discountCode: 'KUMARNDANG',
+      linkUrl: '#',
+      bannerImage: 'https://images.unsplash.com/photo-1527661591475-527312dd65f5?auto=format&fit=crop&w=300&q=80',
+      commissionRate: '25% (รับ 22 บาท/ชิ้น)',
+    },
+    twistChoiceA: 'กุมารสั่งน้ำแดงส่งทีละ 100 ลิตร',
+    twistChoiceB: 'กุมารสมัครสมาชิกคอร์สติวสอบอนุบาล',
+    winningTwist: 'กุมารสั่งน้ำแดงส่งทีละ 100 ลิตร',
+    scenes: [
+      {
+        id: 's3-1',
+        sceneNumber: 1,
+        durationSec: 8,
+        narrationText: 'พีเคได้ยินเสียงแจ้งเตือนเงินหักจากบัตรเครดิตตอนเที่ยงคืน "หัก 1,200 บาท ร้านของเล่นเด็ก..." พีเคอยู่นอนคนเดียวในห้อง!',
+        visualPrompt: 'Young guy looking at credit card notification on smartphone screen at night with glowing child ghost shadow sitting next to bedside',
+        visualImageUrl: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=800&q=80',
+        sfx: 'scary_thunder',
+        bgmMood: 'horror_creepy',
+        subtitles: ['แจ้งเตือนบัตรเครดิตหักเงิน!', 'หัก 1,200 บาท ร้านของเล่นเด็ก...', 'กูอยู่นอนคนเดียวในห้องนะ!']
+      },
+      {
+        id: 's3-2',
+        sceneNumber: 2,
+        durationSec: 10,
+        narrationText: 'พีเคหันไปมองหิ้งกุมารทอง ปรากฏว่ากุมารทองกำลังจิ้มหน้าจอ iPad Pro อย่างมันส์มือ "พ่อๆ! หนูเพิ่งสั่งชุดสไปเดอร์แมนไซส์เด็ก 5 ขวบไป!"',
+        visualPrompt: 'Cute Thai child spirit ghost holding modern tablet tapping screen happily, funny horror art style',
+        visualImageUrl: 'https://images.unsplash.com/photo-1514565131-fce0801e5785?auto=format&fit=crop&w=800&q=80',
+        sfx: 'comedy_boing',
+        bgmMood: 'funny_twist',
+        subtitles: ['หันไปมองหิ้งกุมารทอง...', 'กุมารจิ้มหน้าจอ iPad Pro!', 'พ่อ! หนูสั่งชุดสไปเดอร์แมนแล้ว!']
+      }
+    ]
+  }
+];
