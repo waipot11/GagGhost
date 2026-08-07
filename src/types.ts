@@ -1,9 +1,15 @@
 export interface Scene {
   id: string;
   sceneNumber: number;
+  timeRange?: string; // e.g. "0:00 - 0:20"
+  sceneTitle?: string; // e.g. "ฉากที่ 1: บิ้วด์อารมณ์หลอน"
   durationSec: number;
   narrationText: string; // ภาษาไทย
   visualPrompt: string; // English prompt for AI Image / Video generator
+  midjourneyPrompt?: string; // Midjourney character & scene prompt with seed code
+  runwayCameraPrompt?: string; // Runway Gen-3 / Kling / Luma motion prompt
+  elevenLabsVoiceStyle?: string; // ElevenLabs Thai voice emotion style
+  sunoBgmPrompt?: string; // Suno AI music prompt
   visualImageUrl?: string;
   sfx: 'screaming_ghost' | 'comedy_boing' | 'scary_thunder' | 'funny_cough' | 'creepy_whisper' | 'laugh_track' | 'suspense_stinger';
   bgmMood: 'horror_creepy' | 'suspense_rising' | 'funny_twist' | 'action_panic';

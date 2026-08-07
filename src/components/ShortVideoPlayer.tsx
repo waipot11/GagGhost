@@ -63,6 +63,46 @@ export const ShortVideoPlayer: React.FC<Props> = ({
   const [downloadProgress, setDownloadProgress] = useState<number>(0);
   const [downloadStatusText, setDownloadStatusText] = useState<string>('');
 
+  const [ytUploading, setYtUploading] = useState<boolean>(false);
+
+  const handleYouTubeDirectUpload = async () => {
+    if (ytUploading) return;
+    setYtUploading(true);
+    try {
+      const res = await fetch('/api/youtube/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          story,
+          privacyStatus: 'public'
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        if (data.needAuth) {
+          if (confirm('คุณยังไม่ได้เชื่อมต่อช่อง YouTube จริงของคุณ ต้องการกดเชื่อมต่อช่อง YouTube เดี๋ยวนี้หรือไม่?')) {
+            const urlRes = await fetch('/api/auth/youtube/url').then(r => r.json());
+            if (urlRes.authUrl) {
+              window.location.href = urlRes.authUrl;
+            } else {
+              alert('ไม่สามารถเปิดหน้าเชื่อมต่อ Google OAuth ได้');
+            }
+          }
+        } else {
+          alert('เกิดข้อผิดพลาดในการโพสต์คลิปขึ้น YouTube: ' + data.error);
+        }
+      } else {
+        alert(`🎉 โพสต์ขึ้น YouTube Shorts จริงสำเร็จแล้ว!\n\nชื่อวิดีโอ: ${data.title}\nURL วิดีโอ: ${data.videoUrl}`);
+        window.open(data.videoUrl, '_blank');
+      }
+    } catch (err: any) {
+      alert('เกิดข้อผิดพลาด: ' + err.message);
+    } finally {
+      setYtUploading(false);
+    }
+  };
+
   const handleCopyPinnedComment = () => {
     const sponsor = story.sponsorProduct;
     const textToCopy = `👻 [หนังสั้นสยองขวัญตลก] ${story.title}
@@ -506,6 +546,25 @@ ${sponsor ? `🛍️ สินค้า Shopee ป้ายยาในคลิ
               </div>
               <span className="text-[10px] font-bold text-amber-300 mt-1">
                 ลิงก์ปักหมุด
+              </span>
+            </button>
+
+            {/* 1-Click Direct YouTube Upload Button */}
+            <button
+              onClick={handleYouTubeDirectUpload}
+              disabled={ytUploading}
+              className="flex flex-col items-center group"
+              title="โพสต์วิดีโอนี้ขึ้น YouTube Shorts จริงทันที"
+            >
+              <div className="w-10 h-10 rounded-full bg-red-600 hover:bg-red-500 text-white hover:scale-110 border border-red-400 flex items-center justify-center transition-all shadow-lg shadow-red-950">
+                {ytUploading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <span className="font-black text-xs">▶</span>
+                )}
+              </div>
+              <span className="text-[10px] font-bold text-red-300 mt-1">
+                {ytUploading ? 'กำลังอัปโหลด' : 'โพสต์ YouTube'}
               </span>
             </button>
 

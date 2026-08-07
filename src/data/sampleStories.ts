@@ -33,6 +33,8 @@ export const INITIAL_STORIES: ShortStory[] = [
       {
         id: 's1-1',
         sceneNumber: 1,
+        timeRange: '0:00 - 0:20',
+        sceneTitle: 'ฉากที่ 1: บิ้วด์อารมณ์หลอน',
         durationSec: 8,
         narrationText: 'คืนวันศุกร์ ณ หอพักร้างชั้น 4 นกกำลังนั่งปั่นงานตอนตีสาม จู่ๆ ไฟห้องก็กระพริบ และมีเสียงขูดหลังตู้เย็นดังขึ้น...',
         visualPrompt: 'Dark dim student room at 3am with flickering fluorescent lights, creepy shadow emerging from behind an old refrigerator, horror cinematic lighting, vertical 9:16',
@@ -44,6 +46,8 @@ export const INITIAL_STORIES: ShortStory[] = [
       {
         id: 's1-2',
         sceneNumber: 2,
+        timeRange: '0:20 - 0:45',
+        sceneTitle: 'ฉากที่ 2: เริ่มเจอดี',
         durationSec: 9,
         narrationText: 'นกหยิบไม้ช็อตยุงขึ้นมาขู่ "ออกมานะผี! กูไหว้พระทุกวันพฤหัส!" ทันใดนั้น เงาดำหัวยาวก็ค่อยๆ คลานออกมาจากช่องใต้ตู้เย็น!',
         visualPrompt: 'Scared Thai guy holding electric mosquito swatter pointing at tall dark phantom creepy ghost emerging, eerie atmosphere, comedy horror',
@@ -55,6 +59,8 @@ export const INITIAL_STORIES: ShortStory[] = [
       {
         id: 's1-3',
         sceneNumber: 3,
+        timeRange: '0:45 - 0:55',
+        sceneTitle: 'ฉากที่ 3: จุดพีค/เผชิญหน้า',
         durationSec: 10,
         narrationText: 'ผีส่งเสียงขู่ฟ่อออ... แล้วพูดยื่นหน้ามาใกล้ๆ "มึง... กูหิว... กูหยิบหมูสไลด์มึงไปกินต้มม่าม่าสองถุงแล้วนะ!"',
         visualPrompt: 'Funny ghost face holding a empty instant noodle cup with sheepish expression, hilarious horror twist, dramatic close-up',
@@ -66,6 +72,8 @@ export const INITIAL_STORIES: ShortStory[] = [
       {
         id: 's1-4',
         sceneNumber: 4,
+        timeRange: '0:55 - 1:15',
+        sceneTitle: 'ฉากที่ 4: หักมุมป้ายยา Shopee',
         durationSec: 11,
         narrationText: 'นกตกใจตะโกน "อ้าวไอ้ผี! นั่นหมูชาบูตู! งั้นกูสั่งแอป GrabFood มึงต้องจ่ายคนละครึ่งด้วย!" ผีบอก "โอเค มึงกดรับส่วนลดโค้ด GAG50OFF ด้วยนะ!"',
         visualPrompt: 'Guy and ghost sitting together looking at smartphone screen ordering food delivery with discount coupon overlay, neon green funny horror lighting',
@@ -78,6 +86,8 @@ export const INITIAL_STORIES: ShortStory[] = [
     vipTwistScene: {
       id: 's1-vip',
       sceneNumber: 5,
+      timeRange: '1:15 - 1:30',
+      sceneTitle: 'ฉากที่ 5: สรุปโปรโมชั่น + ปักหมุด',
       durationSec: 8,
       narrationText: '[ฉากพิเศษ VIP] ไรเดอร์มาส่งของ เปิดประตูมาเจอผี นึกว่าเป็นลูกค้าแต่งคอสเพลย์ เลยขอถ่ายรูปทำคอนเทนต์ TikTok ได้ยอดวิวล้านวิว!',
       visualPrompt: 'Delivery driver taking selfie with scary ghost holding food bags, smiling cheerfully together, TikTok viral moment',

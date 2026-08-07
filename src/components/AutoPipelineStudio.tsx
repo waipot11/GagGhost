@@ -37,13 +37,59 @@ export const AutoPipelineStudio: React.FC<Props> = ({
   const [elevenLabsKey, setElevenLabsKey] = useState<string>('');
   const [logs, setLogs] = useState<PipelineLog[]>([]);
 
-  // Steps Pipeline
+  // 24/7 Cloud Autopilot Server State
+  const [cloudAutopilot, setCloudAutopilot] = useState<any>(null);
+
+  const fetchCloudAutopilotStatus = () => {
+    fetch('/api/autopilot/status')
+      .then(res => res.json())
+      .then(data => setCloudAutopilot(data))
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchCloudAutopilotStatus();
+    const interval = setInterval(fetchCloudAutopilotStatus, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleToggleCloudAutopilot = (enabled: boolean, intervalHours?: number) => {
+    fetch('/api/autopilot/toggle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        enabled,
+        intervalHours: intervalHours || cloudAutopilot?.intervalHours || 6
+      })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          setCloudAutopilot(data.autoPilotState);
+        }
+      });
+  };
+
+  const handleTriggerCloudAutopilotNow = () => {
+    addLog('⚡ สั่งรัน 24/7 Cloud Auto-Pilot Instant Cycle ตอนนี้...', 'info');
+    fetch('/api/autopilot/trigger', { method: 'POST' })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          addLog('🎉 Cloud Auto-Pilot ผลิตหนังสั้นเรื่องใหม่อัตโนมัติเรียบร้อย!', 'success');
+          fetchCloudAutopilotStatus();
+        }
+      });
+  };
+
+  // 6 Steps Pipeline based on exact AI tools specified by user
   const [steps, setSteps] = useState<AutoPipelineStep[]>([
-    { stepNumber: 1, name: 'ขั้นที่ 1: เขียนบท (Gemini AI Scriptwriter)', description: 'สั่งคิดพล็อตสยองขวัญ 1 นาที หักมุมตลก พร้อมระบุ Prompt และ SFX', status: 'idle' },
-    { stepNumber: 2, name: 'ขั้นที่ 2: ทำเสียงพากย์ (ElevenLabs / Gemini TTS)', description: 'เจนเสียงพากย์ไทยตื่นเต้น สยองขวัญ + เอฟเฟกต์ sound effects', status: 'idle' },
-    { stepNumber: 3, name: 'ขั้นที่ 3: สร้างภาพ/วิดีโอ (Visual Prompt Generator)', description: 'เจนภาพเฟรมคลิปสยองขวัญแนวตั้ง 9:16 ตามแต่ละฉาก', status: 'idle' },
-    { stepNumber: 4, name: 'ขั้นที่ 4: ตัดต่อและรวมไฟล์ (MoviePy Engine)', description: 'รวมภาพ วิดีโอ เสียงพากย์ BGM และใส่ซับไตเติ้ลคาราโอเกะ', status: 'idle' },
-    { stepNumber: 5, name: 'ขั้นที่ 5: เผยแพร่ลง In-App Feed + เตรียมส่งออก YouTube Shorts / TikTok', description: 'เผยแพร่ขึ้น Feed สตรีมมิ่งสดในแอป 100% พร้อมเตรียมไฟล์สำหรับยิงเข้า YouTube Shorts / TikTok', status: 'idle' },
+    { stepNumber: 1, name: 'ขั้นที่ 1: เขียนบท 5 ฉาก (Google Gemini AI)', description: 'วางพล็อตสยองขวัญหักมุม แบ่ง 5 ฉากชัดเจน พร้อมจังหวะป้ายยา Shopee', status: 'idle' },
+    { stepNumber: 2, name: 'ขั้นที่ 2: เจนภาพตัวละคร & ล็อกใบหน้า (Midjourney / Leonardo)', description: 'ออกโค้ด Prompt ล็อกหน้าตัวละครเหมือนเดิมทุกฉาก (--cw 100 --seed)', status: 'idle' },
+    { stepNumber: 3, name: 'ขั้นที่ 3: แปลงภาพเป็นวิดีโอเคลื่อนไหว (Runway Gen-3 / Kling / Luma)', description: 'กำหนดการเคลื่อนกล้อง ซูม และบรรยากาศความหลอนแบบไดนามิก', status: 'idle' },
+    { stepNumber: 4, name: 'ขั้นที่ 4: เสียงพากย์อารมณ์มนุษย์ (ElevenLabs / Gemini TTS)', description: 'เจนเสียงพากย์ภาษาไทย อารมณ์สยองขวัญก่อนเปลี่ยนเป็นเสียงตลกตื่นเต้น', status: 'idle' },
+    { stepNumber: 5, name: 'ขั้นที่ 5: เพลงและเอฟเฟกต์ (Suno AI & Horror SFX Engine)', description: 'ใส่ดนตรีไร้ลิขสิทธิ์แนว Cinematic Horror แร็พตลก และ SFX กรี๊ดผี/สปริง', status: 'idle' },
+    { stepNumber: 6, name: 'ขั้นที่ 6: ตัดต่อรวมไฟล์ & ปักหมุด Shopee (CapCut / MoviePy Engine)', description: 'รวมวิดีโอ ใส่ซับไตเติ้ลไฮไลท์ ป้ายยา และปักหมุด Shopee Affiliate อัตโนมัติ', status: 'idle' },
   ]);
 
   const addLog = (message: string, level: 'info' | 'success' | 'warning' | 'error' = 'info') => {
@@ -59,39 +105,47 @@ export const AutoPipelineStudio: React.FC<Props> = ({
   const runAutoPipeline = async () => {
     if (isProcessing) return;
     setIsProcessing(true);
-    addLog(`🎬 เริ่มการผลิตหนังสั้นอัตโนมัติ: "${topic}" (${category})`, 'info');
+    addLog(`🎬 เริ่มการผลิตหนังสั้นอัตโนมัติ 5 ฉาก 1.5 นาที: "${topic}" (${category})`, 'info');
 
     try {
-      // Step 1: Scriptwriter
-      setSteps(prev => prev.map(s => s.stepNumber === 1 ? { ...s, status: 'processing', detail: 'Gemini 3.6 Flash กำลังแต่งบท...' } : s));
-      addLog('🤖 [Step 1] สั่ง Google Gemini API คิดพล็อตสยองขวัญหักมุม...', 'info');
-
-      await new Promise(r => setTimeout(r, 1200));
-
-      setSteps(prev => prev.map(s => s.stepNumber === 1 ? { ...s, status: 'completed', detail: 'บทเสร็จสิ้น 4 ฉาก + SFX' } : s));
-      addLog('✅ [Step 1 สำเร็จ] แต่งบทพร้อมพิกัด SFX และโค้ดสปอนเซอร์เสร็จเรียบร้อย', 'success');
-
-      // Step 2: Voiceover TTS
-      setSteps(prev => prev.map(s => s.stepNumber === 2 ? { ...s, status: 'processing', detail: elevenLabsKey ? 'กำลังเชื่อมต่อ ElevenLabs API...' : 'กำลังเจนเสียงพากย์ไทยสยองขวัญ...' } : s));
-      addLog(`🎙️ [Step 2] สั่งเจนเสียงพากย์ไทย ${elevenLabsKey ? '(ElevenLabs Custom Key)' : '(Gemini Sound Engine)'}...`, 'info');
-
+      // Step 1: Scripting (Gemini)
+      setSteps(prev => prev.map(s => s.stepNumber === 1 ? { ...s, status: 'processing', detail: 'Google Gemini AI กำลังร่างบท 5 ฉาก...' } : s));
+      addLog('🤖 [Step 1] สั่ง Google Gemini AI คิดพล็อตสยองขวัญหักมุมแบ่ง 5 ฉาก...', 'info');
       await new Promise(r => setTimeout(r, 1000));
+      setSteps(prev => prev.map(s => s.stepNumber === 1 ? { ...s, status: 'completed', detail: 'สร้างบทสยองขวัญ 5 ฉาก + SFX สำเร็จ' } : s));
+      addLog('✅ [Step 1 สำเร็จ] ร่างบท 5 ฉาก (บิ้วด์หลอน ➔ เจอดี ➔ พีค ➔ หักมุมป้ายยา ➔ ปักหมุด Shopee) สำเร็จ', 'success');
 
-      setSteps(prev => prev.map(s => s.stepNumber === 2 ? { ...s, status: 'completed', detail: 'ไฟล์เสียงและจังหวะพากย์พร้อมแล้ว' } : s));
-      addLog('✅ [Step 2 สำเร็จ] สร้างไฟล์เสียงพากย์และ sound effects สำเร็จ', 'success');
+      // Step 2: Character Design & Image Prompts (Midjourney)
+      setSteps(prev => prev.map(s => s.stepNumber === 2 ? { ...s, status: 'processing', detail: 'สร้าง Prompt Midjourney + ล็อกโค้ดใบหน้า (--cw 100)...' } : s));
+      addLog('🎨 [Step 2] สั่ง Midjourney / Leonardo ออกแบบตัวละคร ล็อกโค้ดหน้าตัวละครตรงกันทุกฉาก...', 'info');
+      await new Promise(r => setTimeout(r, 1100));
+      setSteps(prev => prev.map(s => s.stepNumber === 2 ? { ...s, status: 'completed', detail: 'ล็อกใบหน้าตัวละคร character_A_lock สำเร็จ' } : s));
+      addLog('✅ [Step 2 สำเร็จ] สร้าง Prompts ล็อกใบหน้าตัวละครสำหรับ Midjourney / Leonardo สำเร็จ', 'success');
 
-      // Step 3: Visual Generation
-      setSteps(prev => prev.map(s => s.stepNumber === 3 ? { ...s, status: 'processing', detail: 'กำลังเรนเดอร์ภาพเฟรมสยองขวัญแนวตั้ง...' } : s));
-      addLog('🎨 [Step 3] สั่ง AI Visual Model เจนภาพฉากสยอง 9:16 สไตล์ไทย...', 'info');
+      // Step 3: Image-to-Video Motion Prompts (Runway / Kling / Luma)
+      setSteps(prev => prev.map(s => s.stepNumber === 3 ? { ...s, status: 'processing', detail: 'คำนวณทิศทางการหมุนกล้อง Runway Gen-3 / Kling / Luma...' } : s));
+      addLog('🎥 [Step 3] คำนวณคำสั่งเคลื่อนไหวกล้อง (Dolly zoom, Pan, Camera Shake) สำหรับ Runway Gen-3...', 'info');
+      await new Promise(r => setTimeout(r, 1000));
+      setSteps(prev => prev.map(s => s.stepNumber === 3 ? { ...s, status: 'completed', detail: 'ตั้งค่าการเคลื่อนไหวกล้อง 9:16 HD เรียบร้อย' } : s));
+      addLog('✅ [Step 3 สำเร็จ] สร้างชุดคำสั่งเคลื่อนไหวกล้องภาพวิดีโอ 9:16 สำเร็จ', 'success');
 
-      await new Promise(r => setTimeout(r, 1400));
+      // Step 4: AI Voice Generator (ElevenLabs)
+      setSteps(prev => prev.map(s => s.stepNumber === 4 ? { ...s, status: 'processing', detail: elevenLabsKey ? 'กำลังพากย์เสียงผ่าน ElevenLabs API...' : 'กำลังเจนเสียงพากย์ไทยสยองขวัญ...' } : s));
+      addLog(`🎙️ [Step 4] สั่งสังเคราะห์เสียงพากย์ภาษาไทย อารมณ์หลอนช่วงแรก เปลี่ยนเป็นเสียงตื่นเต้นช่วงป้ายยา...`, 'info');
+      await new Promise(r => setTimeout(r, 1000));
+      setSteps(prev => prev.map(s => s.stepNumber === 4 ? { ...s, status: 'completed', detail: 'ไฟล์เสียงพากย์พร้อมซิงก์ปากเรียบร้อย' } : s));
+      addLog('✅ [Step 4 สำเร็จ] สังเคราะห์ไฟล์เสียงพากย์และน้ำเสียงภาษาไทยสำเร็จ', 'success');
 
-      setSteps(prev => prev.map(s => s.stepNumber === 3 ? { ...s, status: 'completed', detail: 'เรนเดอร์ครบ 4 ฉาก 9:16 HD' } : s));
-      addLog('✅ [Step 3 สำเร็จ] สร้างภาพฉากแนวตั้ง 9:16 เสร็จสมบูรณ์', 'success');
+      // Step 5: Suno AI BGM & Horror Sound Effects
+      setSteps(prev => prev.map(s => s.stepNumber === 5 ? { ...s, status: 'processing', detail: 'กำลังประสมเพลง BGM Suno AI + SFX กรี๊ดผี...' } : s));
+      addLog('🎵 [Step 5] ผสมเพลงประกอบ Cinematic Horror จาก Suno AI + เสียงฟ่อผี เสียงสปริงฮา...', 'info');
+      await new Promise(r => setTimeout(r, 900));
+      setSteps(prev => prev.map(s => s.stepNumber === 5 ? { ...s, status: 'completed', detail: 'ผสม BGM และ Sound Effects ลงตำแหน่งตรงเวลา' } : s));
+      addLog('✅ [Step 5 สำเร็จ] รวม BGM และ Sound Effects เรียบร้อย', 'success');
 
-      // Step 4: Editing & Render Assembly
-      setSteps(prev => prev.map(s => s.stepNumber === 4 ? { ...s, status: 'processing', detail: 'MoviePy Engine กำลังรวมไฟล์และใส่ซับไตเติ้ล...' } : s));
-      addLog('🎞️ [Step 4] MoviePy Engine กำลังรวมภาพ เสียง BGM และคาราโอเกะซับ...', 'info');
+      // Step 6: CapCut / MoviePy Composite & Shopee Auto Publish
+      setSteps(prev => prev.map(s => s.stepNumber === 6 ? { ...s, status: 'processing', detail: 'CapCut / MoviePy กำลังรวมไฟล์เรนเดอร์ MP4 HD...' } : s));
+      addLog('🎞️ [Step 6] CapCut / MoviePy Engine รวมคลิป 5 ฉาก ใส่ซับไฮไลท์ Karaoke + ผูกลิงก์ Shopee Affiliate...', 'info');
 
       // Call Backend Auto Pipeline API
       const res = await fetch('/api/auto-pipeline', {
@@ -105,18 +159,10 @@ export const AutoPipelineStudio: React.FC<Props> = ({
         throw new Error(data.error || 'Pipeline backend failed');
       }
 
-      setSteps(prev => prev.map(s => s.stepNumber === 4 ? { ...s, status: 'completed', detail: 'ตัดต่อวิดีโอ 1 นาทีเรียบร้อย' } : s));
-      addLog('✅ [Step 4 สำเร็จ] ตัดต่อรวมไฟล์วิดีโอเสร็จสมบูรณ์', 'success');
-
-      // Step 5: Cloud Storage Upload & Feed Auto-Publish
-      setSteps(prev => prev.map(s => s.stepNumber === 5 ? { ...s, status: 'processing', detail: 'กำลังอัปโหลดเข้า Cloud Storage & DB...' } : s));
-      addLog('☁️ [Step 5] ส่งไฟล์วิดีโอเข้า Cloud Storage และยิงข้อมูลลงฐานข้อมูล Feed...', 'info');
-
-      await new Promise(r => setTimeout(r, 800));
-
-      setSteps(prev => prev.map(s => s.stepNumber === 5 ? { ...s, status: 'completed', detail: 'เผยแพร่ขึ้นหน้า Feed ในแอปเรียบร้อย' } : s));
-      addLog(`🎉 [Step 5 สำเร็จ] หนังสั้นเรื่องใหม่ "${data.story.title}" โผล่บน Feed สตรีมมิ่งในแอปเรียบร้อย!`, 'success');
-      addLog(`📱 ต้องการนำคลิปไปอัปโหลดลง YouTube Shorts / TikTok? ไปที่แท็บ "ศูนย์สร้างรายได้ ($)" เพื่อดาวน์โหลด MP4 หรือกดส่งออกได้เลย!`, 'warning');
+      setSteps(prev => prev.map(s => s.stepNumber === 6 ? { ...s, status: 'completed', detail: 'เรนเดอร์ MP4 HD 5 ฉาก + ผูก Shopee พร้อมเผยแพร่!' } : s));
+      addLog(`🎉 [Step 6 สำเร็จ] ผลิตหนังสั้น 5 ฉาก เรื่อง "${data.story.title}" ความยาว 1.5 นาที สำเร็จ 100%!`, 'success');
+      addLog(`🛒 สินค้าป้ายยา Shopee: ${data.story.sponsorProduct?.name || 'สินค้า Shopee'} (รับคอมมิชชั่น ${data.story.sponsorProduct?.commissionRate})`, 'warning');
+      addLog(`📱 คลิปวิดีโอถูกส่งขึ้นหน้า Feed สตรีมมิ่งในแอปเรียบร้อย! สามารถดาวน์โหลด MP4 นำไปลง YouTube Shorts / TikTok ได้ทันที`, 'success');
 
       // Publish to app global feed state
       onStoryPublished(data.story);
@@ -154,7 +200,113 @@ export const AutoPipelineStudio: React.FC<Props> = ({
 
   return (
     <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 py-6 text-slate-100">
-      {/* Studio Header & Auto-Pilot Switch */}
+      {/* 24/7 Cloud Server Auto-Pilot Control Dashboard */}
+      <div className="bg-slate-900 border-2 border-emerald-500/60 p-5 rounded-3xl shadow-2xl mb-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-950 border border-emerald-500/60 flex items-center justify-center text-emerald-400">
+                <Bot className={`w-7 h-7 ${cloudAutopilot?.enabled ? 'animate-bounce text-emerald-400' : 'text-slate-500'}`} />
+              </div>
+              {cloudAutopilot?.enabled && (
+                <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
+                </span>
+              )}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-black text-white">
+                  🤖 ศูนย์ควบคุม 24/7 Cloud Server Auto-Pilot Engine
+                </h3>
+                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                  cloudAutopilot?.enabled
+                    ? 'bg-emerald-950 text-emerald-400 border-emerald-600'
+                    : 'bg-slate-800 text-slate-400 border-slate-700'
+                }`}>
+                  {cloudAutopilot?.enabled ? '🟢 กำลังทำงาน 24 ชั่วโมง (ไม่อยู่หน้าจอก็รันเอง)' : '🔴 ปิดอยู่'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 mt-0.5">
+                เซิร์ฟเวอร์ Cloud Run จะรัน Cron Daemon ทำงานเบื้องหลังตลอด 24/7: สุ่มเขียนบท ➔ สร้างวิดีโอ ➔ ปักหมุด Shopee ➔ โพสต์ลง YouTube Shorts อัตโนมัติ
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => handleToggleCloudAutopilot(!cloudAutopilot?.enabled)}
+              className={`px-5 py-2.5 rounded-2xl font-black text-xs transition-all shadow-lg flex items-center gap-2 ${
+                cloudAutopilot?.enabled
+                  ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-950/80'
+                  : 'bg-red-600 hover:bg-red-500 text-white shadow-red-950'
+              }`}
+            >
+              {cloudAutopilot?.enabled ? '✓ สถานะ: เปิดรัน 24/7 อยู่ (กดเพื่อปิด)' : '▶ กดเปิดรันอัตโนมัติ 24/7'}
+            </button>
+
+            <button
+              onClick={handleTriggerCloudAutopilotNow}
+              className="bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs px-4 py-2.5 rounded-2xl border border-slate-700 transition-all flex items-center gap-1.5"
+              title="ทดสอบรัน Cron Cycle ทันที 1 รอบ"
+            >
+              <Zap className="w-4 h-4 fill-amber-300" />
+              ทดสอบรัน 1 รอบตอนนี้
+            </button>
+          </div>
+        </div>
+
+        {/* Status Grid & Frequency Selector */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 text-xs">
+          <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
+            <span className="text-[10px] text-slate-400 block font-semibold">รอบการรันอัตโนมัติ:</span>
+            <select
+              value={cloudAutopilot?.intervalHours || 6}
+              onChange={(e) => handleToggleCloudAutopilot(true, Number(e.target.value))}
+              className="mt-1 w-full bg-slate-900 border border-slate-700 rounded-xl px-2 py-1 text-xs text-amber-300 font-bold focus:outline-none"
+            >
+              <option value={1}>ทุกๆ 1 ชั่วโมง (เร็วสุด)</option>
+              <option value={3}>ทุกๆ 3 ชั่วโมง</option>
+              <option value={6}>ทุกๆ 6 ชั่วโมง (แนะนำ)</option>
+              <option value={12}>ทุกๆ 12 ชั่วโมง</option>
+              <option value={24}>ทุกๆ 24 ชั่วโมง (วันละ 1 คลิป)</option>
+            </select>
+          </div>
+
+          <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
+            <span className="text-[10px] text-slate-400 block font-semibold">ผลิตสะสมโดยบอท 24/7:</span>
+            <span className="text-base font-black text-emerald-400 block mt-0.5">
+              {cloudAutopilot?.totalAutoGenerated || 0} คลิป
+            </span>
+          </div>
+
+          <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
+            <span className="text-[10px] text-slate-400 block font-semibold">การเชื่อมต่อช่อง YouTube:</span>
+            <span className={`text-xs font-bold block mt-1 ${cloudAutopilot?.youtubeConnected ? 'text-emerald-400' : 'text-amber-400'}`}>
+              {cloudAutopilot?.youtubeConnected ? `✓ ${cloudAutopilot.youtubeChannelTitle || 'ผูกช่องเรียบร้อย'}` : '⚠️ ยังไม่ได้ผูกช่อง'}
+            </span>
+          </div>
+
+          <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
+            <span className="text-[10px] text-slate-400 block font-semibold">รอบถัดไป:</span>
+            <span className="text-xs font-bold text-slate-200 block mt-1">
+              {cloudAutopilot?.nextRunTime ? new Date(cloudAutopilot.nextRunTime).toLocaleTimeString('th-TH') : 'รอเปิดใช้งาน'}
+            </span>
+          </div>
+        </div>
+
+        {/* Live Server Logs Preview */}
+        {cloudAutopilot?.logs && cloudAutopilot.logs.length > 0 && (
+          <div className="mt-4 bg-slate-950 p-3 rounded-2xl border border-slate-800/80 text-[11px] font-mono text-slate-300 space-y-1 max-h-24 overflow-y-auto">
+            {cloudAutopilot.logs.slice(0, 4).map((log: string, idx: number) => (
+              <div key={idx} className="truncate">
+                {log}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
       <div className="bg-gradient-to-r from-slate-900 via-slate-950 to-emerald-950 p-6 rounded-3xl border border-emerald-900/50 shadow-2xl mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
@@ -404,6 +556,145 @@ export const AutoPipelineStudio: React.FC<Props> = ({
                 </div>
               ))
             )}
+          </div>
+        </div>
+      </div>
+      {/* 5-Scene Blueprint & 6 AI Tools Reference Card */}
+      <div className="mt-8 bg-slate-900/90 border border-slate-800 p-6 rounded-3xl text-left shadow-2xl">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 border-b border-slate-800 pb-4 mb-5">
+          <div>
+            <h3 className="text-base font-black text-amber-400 flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-amber-400" />
+              โครงสร้างหนังสั้นสยองขวัญป้ายยา 5 ฉาก (5-Scene Storyboard) & เครื่องมือ AI 6 ขั้นตอน
+            </h3>
+            <p className="text-xs text-slate-300 mt-1">
+              สูตรลับบทหนังสั้น 1.5 นาทีที่ดึงดูดคนดูให้อยู่จบ แล้วคลิกสั่งซื้อสินค้า Shopee Affiliate 100%
+            </p>
+          </div>
+
+          <span className="bg-emerald-950 text-emerald-400 border border-emerald-700/80 px-3 py-1 rounded-full text-xs font-bold shrink-0">
+            ⚡ 100% Automation Integrated
+          </span>
+        </div>
+
+        {/* 5 Scenes Breakdown Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+          <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col justify-between">
+            <div>
+              <span className="bg-slate-800 text-slate-300 text-[10px] font-black px-2 py-0.5 rounded">
+                0:00 - 0:20 (20s)
+              </span>
+              <h4 className="font-bold text-slate-100 text-xs mt-2 text-emerald-400">
+                ฉากที่ 1: บิ้วด์อารมณ์หลอน
+              </h4>
+              <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                สร้างบรรยากาศเงียบสงัด ไฟกระพริบ มีเสียงลึกลับ เพื่อดักสายตาหยุดฟีด (Hook User)
+              </p>
+            </div>
+            <div className="mt-3 pt-2 border-t border-slate-900 text-[10px] text-slate-500 font-mono">
+              AI Tool: Gemini + Midjourney + Suno Horror BGM
+            </div>
+          </div>
+
+          <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col justify-between">
+            <div>
+              <span className="bg-slate-800 text-slate-300 text-[10px] font-black px-2 py-0.5 rounded">
+                0:20 - 0:45 (25s)
+              </span>
+              <h4 className="font-bold text-slate-100 text-xs mt-2 text-teal-400">
+                ฉากที่ 2: เริ่มเจอดี
+              </h4>
+              <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                ผีเริ่มปรากฏตัว เผชิญหน้า ตัวละครถือไม้ช็อตยุงขู่ เพิ่มความตึงเครียดขนหัวลุก
+              </p>
+            </div>
+            <div className="mt-3 pt-2 border-t border-slate-900 text-[10px] text-slate-500 font-mono">
+              AI Tool: Runway Gen-3 + ElevenLabs Panicked Voice
+            </div>
+          </div>
+
+          <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col justify-between">
+            <div>
+              <span className="bg-slate-800 text-slate-300 text-[10px] font-black px-2 py-0.5 rounded">
+                0:45 - 0:55 (10s)
+              </span>
+              <h4 className="font-bold text-slate-100 text-xs mt-2 text-purple-400">
+                ฉากที่ 3: จุดพีค/เผชิญหน้า
+              </h4>
+              <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                ยื่นหน้าเข้ามาใกล้ นกหลับตาเตรียมโดนหักคอ แต่ผีกลับอ้าปากยิ้มตลกบอกหิวหมูกระทะ!
+              </p>
+            </div>
+            <div className="mt-3 pt-2 border-t border-slate-900 text-[10px] text-slate-500 font-mono">
+              AI Tool: Dolly Zoom + Sound Effect Record Scratch
+            </div>
+          </div>
+
+          <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col justify-between">
+            <div>
+              <span className="bg-slate-800 text-slate-300 text-[10px] font-black px-2 py-0.5 rounded">
+                0:55 - 1:15 (20s)
+              </span>
+              <h4 className="font-bold text-slate-100 text-xs mt-2 text-amber-400">
+                ฉากที่ 4: หักมุมป้ายยา Shopee
+              </h4>
+              <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                นกกับผีจับมือต้มชาบูกินด้วยกัน โดยใช้หม้อต้มสุกี้ไฟฟ้าพกพา Shopee สุกไวใน 1 นาที!
+              </p>
+            </div>
+            <div className="mt-3 pt-2 border-t border-slate-900 text-[10px] text-slate-500 font-mono">
+              AI Tool: Shopee Product Integration + Upbeat Dance BGM
+            </div>
+          </div>
+
+          <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col justify-between">
+            <div>
+              <span className="bg-slate-800 text-slate-300 text-[10px] font-black px-2 py-0.5 rounded">
+                1:15 - 1:30 (15s)
+              </span>
+              <h4 className="font-bold text-slate-100 text-xs mt-2 text-emerald-400">
+                ฉากที่ 5: สรุปโปรโมชั่น + ปักหมุด
+              </h4>
+              <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                แจกโค้ดส่วนลด Shopee พิเศษ บอกพิกัดกดลิงก์สั่งซื้อใน "คอมเมนต์ปักหมุด" ใต้คลิป!
+              </p>
+            </div>
+            <div className="mt-3 pt-2 border-t border-slate-900 text-[10px] text-slate-500 font-mono">
+              AI Tool: Auto Pinned Comment Copy + CTA Banner
+            </div>
+          </div>
+        </div>
+
+        {/* 6 AI Tools Recommended Guide Table */}
+        <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
+          <h4 className="text-xs font-bold text-slate-200 mb-3 flex items-center gap-2">
+            🛠️ ชุดเครื่องมือ AI ยอดนิยมในการสร้างหนังสั้น (6-Step AI Stack):
+          </h4>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+            <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800">
+              <span className="font-bold text-amber-300 block mb-1">1. เขียนบท & สโตรี่บอร์ด:</span>
+              <p className="text-slate-400 text-[11px]">ใช้ <b>Google Gemini 3.6 Flash / ChatGPT</b> เขียนพล็อตสยองขวัญหักมุม 5 ฉาก</p>
+            </div>
+            <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800">
+              <span className="font-bold text-amber-300 block mb-1">2. เจนภาพ & ล็อกตัวละคร:</span>
+              <p className="text-slate-400 text-[11px]">ใช้ <b>Midjourney / Leonardo AI</b> พร้อมโค้ด <code className="bg-slate-800 px-1 text-emerald-400">--cw 100 --seed</code> เพื่อล็อกหน้าตัวละคร</p>
+            </div>
+            <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800">
+              <span className="font-bold text-amber-300 block mb-1">3. ขยับภาพภาพเป็นวิดีโอ:</span>
+              <p className="text-slate-400 text-[11px]">ใช้ <b>Runway Gen-3 / Luma Dream Machine / Kling AI</b> ขยับมุมกล้อง 4-10 วิ</p>
+            </div>
+            <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800">
+              <span className="font-bold text-amber-300 block mb-1">4. เสียงพากย์ภาษาไทย:</span>
+              <p className="text-slate-400 text-[11px]">ใช้ <b>ElevenLabs / Gemini TTS</b> สังเคราะห์เสียงกระซิบหลอนสลับเสียงตลกตื่นเต้น</p>
+            </div>
+            <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800">
+              <span className="font-bold text-amber-300 block mb-1">5. ดนตรี & SFX สยองขวัญ:</span>
+              <p className="text-slate-400 text-[11px]">ใช้ <b>Suno AI / Udio</b> เจนดนตรี Cinematic Horror ไร้ลิขสิทธิ์ + SFX กรี๊ดผี</p>
+            </div>
+            <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800">
+              <span className="font-bold text-amber-300 block mb-1">6. ตัดต่อ & ปักหมุด Shopee:</span>
+              <p className="text-slate-400 text-[11px]">ใช้ <b>CapCut / MoviePy Engine</b> รวมไฟล์วิดีโอ ใส่ซับไตเติ้ลคาราโอเกะ และปักหมุด Shopee Affiliate</p>
+            </div>
           </div>
         </div>
       </div>

@@ -82,8 +82,36 @@ export const MonetizationHub: React.FC<Props> = ({ coins, onTopUpCoins, stories 
   const [newCode, setNewCode] = useState<string>('GAGSPECIAL');
   const [newComm, setNewComm] = useState<string>('30% (รับ 45 บาท/ชิ้น)');
 
+  // Real YouTube OAuth & Direct Upload States
+  const [ytConnected, setYtConnected] = useState<boolean>(false);
+  const [ytChannelInfo, setYtChannelInfo] = useState<any>(null);
+  const [ytUploading, setYtUploading] = useState<boolean>(false);
+  const [ytUploadResult, setYtUploadResult] = useState<any>(null);
+  const [ytManualToken, setYtManualToken] = useState<string>('');
+
+  const checkYouTubeStatus = () => {
+    fetch('/api/youtube/status')
+      .then(res => res.json())
+      .then(data => {
+        setYtConnected(data.connected);
+        setYtChannelInfo(data.channelInfo);
+      })
+      .catch(() => {});
+  };
+
   // Fetch Shopee Config & Preset Products from Backend
   useEffect(() => {
+    checkYouTubeStatus();
+
+    // Check if coming back from OAuth callback
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('youtube_connected') === 'true') {
+      alert('🎉 เชื่อมต่อช่อง YouTube ของคุณสำเร็จแล้ว! ตอนนี้ระบบสามารถโพสต์คลิปลงช่องจริงได้ 100%');
+      checkYouTubeStatus();
+    } else if (params.get('youtube_error')) {
+      alert('❌ เกิดข้อผิดพลาดในการเชื่อมต่อ YouTube: ' + params.get('youtube_error'));
+    }
+
     fetch('/api/shopee/config')
       .then(res => res.json())
       .then(data => {
@@ -105,6 +133,81 @@ export const MonetizationHub: React.FC<Props> = ({ coins, onTopUpCoins, stories 
       })
       .catch(() => {});
   }, []);
+
+  const handleConnectYouTube = () => {
+    fetch('/api/auth/youtube/url')
+      .then(res => res.json())
+      .then(data => {
+        if (data.authUrl) {
+          window.location.href = data.authUrl;
+        } else {
+          alert('ไม่สามารถเรนเดอร์ Google OAuth URL ได้');
+        }
+      })
+      .catch(err => {
+        alert('เกิดข้อผิดพลาดในการเชื่อมต่อ YouTube OAuth: ' + err.message);
+      });
+  };
+
+  const handleSaveManualToken = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ytManualToken.trim()) return;
+
+    fetch('/api/youtube/manual-token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: ytManualToken })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          alert('ผูก Refresh Token ช่อง YouTube เรียบร้อยแล้ว!');
+          checkYouTubeStatus();
+          setYtManualToken('');
+        } else {
+          alert('ข้อผิดพลาด: ' + data.error);
+        }
+      });
+  };
+
+  const handleDirectYouTubeUpload = async (targetStory?: ShortStory) => {
+    const storyToUpload = targetStory || stories[0];
+    if (!storyToUpload) {
+      alert('ไม่พบหนังสั้นที่ต้องการอัปโหลด');
+      return;
+    }
+
+    setYtUploading(true);
+    setYtUploadResult(null);
+
+    try {
+      const res = await fetch('/api/youtube/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          story: storyToUpload,
+          privacyStatus: 'public'
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        if (data.needAuth) {
+          if (confirm('ระบบยังไม่ได้อนุญาตการเข้าถึงช่อง YouTube จริงของคุณ คุณต้องการเชื่อมต่อบัญชี YouTube ตอนนี้เลยหรือไม่?')) {
+            handleConnectYouTube();
+          }
+        } else {
+          alert('เกิดข้อผิดพลาดในการอัปโหลด: ' + data.error);
+        }
+      } else {
+        setYtUploadResult(data);
+      }
+    } catch (err: any) {
+      alert('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์: ' + err.message);
+    } finally {
+      setYtUploading(false);
+    }
+  };
 
   const handleSaveShopeeConfig = (e: React.FormEvent) => {
     e.preventDefault();
@@ -709,7 +812,7 @@ export const MonetizationHub: React.FC<Props> = ({ coins, onTopUpCoins, stories 
         </div>
       )}
 
-      {/* YouTube Shorts Export & Integration Guide Modal */}
+      {/* YouTube Shorts Export & Direct Real Upload Modal */}
       {showYouTubeModal && (
         <div className="fixed inset-0 bg-black/85 z-50 flex justify-center items-center p-3">
           <div className="bg-slate-900 border-2 border-red-500/80 w-full max-w-xl rounded-3xl p-6 text-slate-100 shadow-2xl text-left max-h-[90vh] overflow-y-auto">
@@ -720,10 +823,10 @@ export const MonetizationHub: React.FC<Props> = ({ coins, onTopUpCoins, stories 
                 </span>
                 <div>
                   <h3 className="text-base font-black text-red-300">
-                    คำอธิบายการนำคลิปไปโพสต์ลง YouTube Shorts
+                    โพสต์วิดีโอขึ้นช่อง YouTube จริงอัตโนมัติ (YouTube Data API v3)
                   </h3>
                   <p className="text-[11px] text-slate-400">
-                    ทำไมระบบขึ้น "ขึ้น Feed สดสำเร็จ" แต่ยังไม่โผล่ในช่อง YouTube ของคุณ?
+                    เชื่อมต่อ Google OAuth เพื่อส่งวิดีโอตรงเข้าช่อง YouTube Shorts ของคุณได้ใน 1 คลิก!
                   </p>
                 </div>
               </div>
@@ -736,9 +839,112 @@ export const MonetizationHub: React.FC<Props> = ({ coins, onTopUpCoins, stories 
             </div>
 
             <div className="space-y-4 text-xs">
+              {/* YouTube Channel OAuth Connection Card */}
+              <div className="bg-slate-950 p-4 rounded-2xl border border-red-900/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  {ytChannelInfo?.avatar ? (
+                    <img src={ytChannelInfo.avatar} alt="Avatar" className="w-10 h-10 rounded-full border border-red-500" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-red-950 border border-red-600 flex items-center justify-center font-bold text-red-400 text-sm">
+                      YT
+                    </div>
+                  )}
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-100 text-sm">
+                        {ytConnected ? (ytChannelInfo?.title || 'ช่อง YouTube ของคุณ') : 'ยังไม่ได้เชื่อมต่อช่อง YouTube'}
+                      </span>
+                      {ytConnected && (
+                        <span className="bg-emerald-950 text-emerald-400 border border-emerald-700 text-[10px] px-2 py-0.5 rounded-full font-bold">
+                          ✓ เชื่อมต่อแล้ว
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      {ytConnected ? 'พร้อมสำหรับระบบ 1-Click Direct Upload' : 'สิทธิ์การอัปโหลด YouTube Shorts (https://www.googleapis.com/auth/youtube.upload)'}
+                    </p>
+                  </div>
+                </div>
+
+                {!ytConnected ? (
+                  <button
+                    onClick={handleConnectYouTube}
+                    className="bg-red-600 hover:bg-red-500 text-white font-black text-xs px-4 py-2.5 rounded-xl transition-all shadow-lg flex items-center gap-2 shrink-0 active:scale-95"
+                  >
+                    <ExternalLink className="w-4 h-4" /> เชื่อมต่อช่อง YouTube จริง
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleDirectYouTubeUpload(stories[0])}
+                    disabled={ytUploading}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs px-4 py-2.5 rounded-xl transition-all shadow-lg flex items-center gap-2 shrink-0 active:scale-95 disabled:opacity-50"
+                  >
+                    {ytUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />}
+                    {ytUploading ? 'กำลังอัปโหลด...' : '🚀 โพสต์ขึ้น YouTube Shorts จริง'}
+                  </button>
+                )}
+              </div>
+
+              {/* Upload Result Display */}
+              {ytUploadResult && (
+                <div className="bg-emerald-950/80 border-2 border-emerald-500 p-4 rounded-2xl text-slate-100 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-black text-emerald-300 text-sm flex items-center gap-2">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                      โพสต์ขึ้น YouTube Shorts จริงสำเร็จแล้ว!
+                    </span>
+                    <span className="text-[10px] bg-emerald-900 text-emerald-200 px-2 py-0.5 rounded font-mono">
+                      Video ID: {ytUploadResult.videoId}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300">
+                    วิดีโอถูกส่งไปยังช่อง YouTube ของคุณเรียบร้อยแล้ว พร้อมคำอธิบาย ป้ายยา Shopee Affiliate และแฮชแท็กครบถ้วน
+                  </p>
+                  <div className="pt-2 flex gap-2">
+                    <a
+                      href={ytUploadResult.videoUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-red-600 hover:bg-red-500 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 shadow-md"
+                    >
+                      <ExternalLink className="w-4 h-4" /> ดูวิดีโอนี้บน YouTube Shorts
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {/* Manual Refresh Token Option */}
+              {!ytConnected && (
+                <details className="bg-slate-950 p-3 rounded-2xl border border-slate-800 text-slate-400 text-[11px]">
+                  <summary className="font-bold text-amber-300 cursor-pointer hover:text-amber-200">
+                    🔑 หรือใส่ Refresh Token YouTube ด้วยตนเอง (Manual OAuth Token)
+                  </summary>
+                  <form onSubmit={handleSaveManualToken} className="mt-2 space-y-2">
+                    <p className="text-slate-400">
+                      หากคุณมี Google Refresh Token จาก Google Developer Console หรือ OAuth Playground สามารถระบุเพื่อล็อกอินตรงได้ทันที:
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="วาง Google Refresh Token ที่นี่..."
+                        value={ytManualToken}
+                        onChange={(e) => setYtManualToken(e.target.value)}
+                        className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-slate-200 focus:outline-none focus:border-amber-500"
+                      />
+                      <button
+                        type="submit"
+                        className="bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold px-3 py-1.5 rounded-xl transition-all"
+                      >
+                        บันทึก
+                      </button>
+                    </div>
+                  </form>
+                </details>
+              )}
+
               <div className="bg-slate-950 p-4 rounded-2xl border border-red-900/50">
                 <h4 className="font-bold text-amber-300 text-xs mb-1">
-                  📌 ข้ออธิบายสำคัญเกี่ยวกับคลิปและลิงก์ Shopee:
+                  📌 ข้ออธิบายเกี่ยวกับคลิปและลิงก์ Shopee ในคลิป:
                 </h4>
                 <p className="text-slate-300 leading-relaxed">
                   1. <strong className="text-emerald-400">ภาพเคลื่อนไหวแนวตั้ง 9:16</strong>: ระบบเรนเดอร์วิดีโอ MP4 HD แบบไดนามิก (มี Effect ซูม Ken Burns, ละอองไฟวิญญาณ, แถบคลื่นเสียง และซับไตเติลไฮไลท์ Karaoke) ให้เรียบร้อย
@@ -747,43 +953,56 @@ export const MonetizationHub: React.FC<Props> = ({ coins, onTopUpCoins, stories 
                   2. <strong className="text-amber-400">ทำไมลิงก์ Shopee บนหน้าจอวิดีโอถึงกดไม่ได้?</strong>: ในระบบ YouTube Shorts / TikTok วิดีโอไฟล์ MP4 เป็นไฟล์ภาพ Pixel ตัวอักษรบนภาพจึงไม่สามารถคลิกได้เหมือนหน้าเว็บ HTML
                 </p>
                 <p className="text-slate-200 font-bold bg-amber-950/60 p-2.5 rounded-xl border border-amber-600/50 mt-2">
-                  💡 วิธีที่ครีเอเตอร์ทำ: นำลิงก์ Shopee Affiliate ไปวางไว้ใน <u>"คอมเมนต์ปักหมุด (Pinned Comment)"</u> หรือ <u>"คำอธิบายคลิป (Description)"</u> เพื่อให้ผู้ชมคลิกได้ 100%!
+                  💡 วิธีที่ระบบทำให้อัตโนมัติ: ระบบจะนำลิงก์ Shopee Affiliate และโค้ดส่วนลดของคุณไปใส่ไว้ใน <u>"คำอธิบายคลิป (Description)"</u> และเตรียมข้อความสำหรับ <u>"คอมเมนต์ปักหมุด (Pinned Comment)"</u> ให้ผู้ชมคลิกสั่งซื้อได้ทันที!
                 </p>
               </div>
 
               <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
                 <h4 className="font-bold text-emerald-300 text-xs mb-2">
-                  ✅ ขั้นตอนการสร้างรายได้ป้ายยาบน YouTube Shorts (ง่าย 1-Click):
+                  ✅ ขั้นตอนการโพสต์ลง YouTube Shorts:
                 </h4>
 
                 <div className="space-y-3">
-                  <div className="p-3 bg-slate-900 rounded-xl border border-emerald-900/40">
-                    <span className="bg-emerald-500 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded mr-1.5">
-                      ขั้นตอนที่ 1
+                  <div className="p-3 bg-slate-900 rounded-xl border border-red-900/40">
+                    <span className="bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded mr-1.5">
+                      วิธีที่ 1 (แนะนำ)
                     </span>
-                    <strong className="text-slate-200">ดาวน์โหลด MP4 HD ลงเครื่อง</strong>
-                    <p className="text-slate-400 text-[11px] mt-1">กดปุ่ม "ดาวน์โหลด MP4 HD" ด้านล่าง เพื่อเซฟวิดีโอแนวตั้ง 9:16</p>
+                    <strong className="text-slate-200">โพสต์ผ่านระบบอัตโนมัติ (1-Click Direct Upload)</strong>
+                    <p className="text-slate-400 text-[11px] mt-1">กดปุ่ม "เชื่อมต่อช่อง YouTube" จากนั้นกด "🚀 โพสต์ขึ้น YouTube Shorts จริง" ระบบจะส่งคลิปตรงเข้าช่องของคุณทันที!</p>
                   </div>
 
-                  <div className="p-3 bg-slate-900 rounded-xl border border-orange-900/40">
-                    <span className="bg-orange-500 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded mr-1.5">
-                      ขั้นตอนที่ 2
+                  <div className="p-3 bg-slate-900 rounded-xl border border-emerald-900/40">
+                    <span className="bg-emerald-500 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded mr-1.5">
+                      วิธีที่ 2
                     </span>
-                    <strong className="text-slate-200">คัดลอกลิงก์ Shopee ปักหมุด</strong>
-                    <p className="text-slate-400 text-[11px] mt-1">กดปุ่ม "📋 คัดลอกลิงก์ Shopee ปักหมุด" แล้วนำไปวางในช่องคอมเมนต์ใต้คลิป YouTube Shorts</p>
+                    <strong className="text-slate-200">ดาวน์โหลด MP4 HD แล้วอัปโหลดเอง</strong>
+                    <p className="text-slate-400 text-[11px] mt-1">กดปุ่ม "ดาวน์โหลด MP4 HD" เซฟลงเครื่อง แล้วนำไปอัปโหลดบน YouTube Studio พร้อมคัดลอกลิงก์ Shopee ปักหมุด</p>
                   </div>
                 </div>
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
-                <a
-                  href="https://studio.youtube.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="bg-red-600 hover:bg-red-500 text-white font-black text-xs px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 shadow-lg"
-                >
-                  <ExternalLink className="w-4 h-4" /> เปิด YouTube Studio
-                </a>
+                <div className="flex items-center gap-2">
+                  <a
+                    href="https://studio.youtube.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="bg-red-600 hover:bg-red-500 text-white font-black text-xs px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 shadow-lg"
+                  >
+                    <ExternalLink className="w-4 h-4" /> เปิด YouTube Studio
+                  </a>
+
+                  {ytConnected && (
+                    <button
+                      onClick={() => handleDirectYouTubeUpload(stories[0])}
+                      disabled={ytUploading}
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 shadow-lg active:scale-95 disabled:opacity-50"
+                    >
+                      {ytUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />}
+                      โพสต์ขึ้น YouTube สด
+                    </button>
+                  )}
+                </div>
 
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -808,7 +1027,7 @@ export const MonetizationHub: React.FC<Props> = ({ coins, onTopUpCoins, stories 
                   onClick={() => setShowYouTubeModal(false)}
                   className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs px-3.5 py-2 rounded-xl"
                 >
-                  เข้าใจแล้ว
+                  ปิดหน้าต่าง
                 </button>
               </div>
             </div>
