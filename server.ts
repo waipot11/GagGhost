@@ -998,35 +998,54 @@ async function createValidMp4File(story: any, videoBase64?: string): Promise<{ f
 
       let convertCmd = '';
       if (hasAudio) {
-        convertCmd = `/usr/bin/ffmpeg -y -loglevel error -i "${tmpInput}" -c:v libx264 -preset fast -profile:v main -level 4.0 -pix_fmt yuv420p -g 30 -bf 2 -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 "${tmpOutput}"`;
+        convertCmd = `/usr/bin/ffmpeg -y -loglevel error -i "${tmpInput}" -c:v libx264 -preset fast -profile:v high -level 4.1 -pix_fmt yuv420p -g 30 -bf 2 -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 "${tmpOutput}"`;
       } else {
-        // Add valid audio track (sine wave) so YouTube processes audio/video correctly
-        convertCmd = `/usr/bin/ffmpeg -y -loglevel error -i "${tmpInput}" -f lavfi -i "sine=frequency=220:sample_rate=44100" -c:v libx264 -preset fast -profile:v main -level 4.0 -pix_fmt yuv420p -g 30 -bf 2 -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 -filter:a "volume=0.01" -shortest "${tmpOutput}"`;
+        convertCmd = `/usr/bin/ffmpeg -y -loglevel error -i "${tmpInput}" -f lavfi -i "sine=frequency=220:sample_rate=44100" -c:v libx264 -preset fast -profile:v high -level 4.1 -pix_fmt yuv420p -g 30 -bf 2 -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 -filter:a "volume=0.02" -shortest "${tmpOutput}"`;
       }
 
-      await execPromise(convertCmd, { maxBuffer: 20 * 1024 * 1024 });
+      await execPromise(convertCmd, { maxBuffer: 30 * 1024 * 1024 });
       try { fs.unlinkSync(tmpInput); } catch (e) {}
 
       if (fs.existsSync(tmpOutput) && fs.statSync(tmpOutput).size > 1000) {
         return { filePath: tmpOutput, cleanup };
       }
     } catch (err) {
-      console.warn("Failed to convert base64 video with ffmpeg, generating synthetic 9:16 MP4 fallback:", err);
+      console.warn("Failed to convert base64 video with ffmpeg, generating 9:16 MP4 story slideshow:", err);
     }
   }
 
-  // Generate a 100% YouTube compliant 9:16 vertical MP4 video (1080x1920, 15 seconds) for YouTube Shorts
+  // Generate a high quality 9:16 vertical MP4 video (1080x1920, 15s) with multi-slide animation and audio
   try {
-    const rawTitle = (story?.title || 'GagGhost AI Shorts').replace(/["'\\:\n\r]/g, ' ');
-    const safeTitle = rawTitle.slice(0, 40);
-    const ffmpegCmd = `/usr/bin/ffmpeg -y -loglevel error -f lavfi -i "color=c=0x0f172a:s=1080x1920:r=30:d=15" -f lavfi -i "sine=frequency=220:sample_rate=44100:duration=15" -vf "drawtext=text='GagGhost AI':fontsize=60:fontcolor=0xa855f7:x=(w-text_w)/2:y=300,drawtext=text='${safeTitle}':fontsize=42:fontcolor=white:x=(w-text_w)/2:y=500" -c:v libx264 -preset fast -profile:v main -level 4.0 -pix_fmt yuv420p -g 30 -bf 2 -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 -filter:a "volume=0.01" -shortest "${tmpOutput}"`;
+    const tmpDir = path.join("/tmp", `story_slides_${Date.now()}_${Math.floor(Math.random() * 10000)}`);
+    await fs.promises.mkdir(tmpDir, { recursive: true });
 
-    await execPromise(ffmpegCmd, { maxBuffer: 20 * 1024 * 1024 });
+    const img1 = path.join(tmpDir, "slide1.png");
+    const img2 = path.join(tmpDir, "slide2.png");
+
+    // Slide 1: Dark Purple Horror Canvas
+    const cmd1 = `/usr/bin/ffmpeg -y -loglevel error -f lavfi -i "color=c=0x0f172a:s=1080x1920" -vframes 1 -vf "drawtext=text='GagGhost AI Shorts':fontsize=56:fontcolor=0xa855f7:x=(w-text_w)/2:y=300" "${img1}"`;
+    // Slide 2: Shopee Deal Canvas
+    const cmd2 = `/usr/bin/ffmpeg -y -loglevel error -f lavfi -i "color=c=0x1e1b4b:s=1080x1920" -vframes 1 -vf "drawtext=text='Shopee Special Deal':fontsize=56:fontcolor=0xf97316:x=(w-text_w)/2:y=300" "${img2}"`;
+
+    await execPromise(cmd1);
+    await execPromise(cmd2);
+
+    const ffmpegCmd = `/usr/bin/ffmpeg -y -loglevel error -loop 1 -t 7.5 -i "${img1}" -loop 1 -t 7.5 -i "${img2}" -f lavfi -i "sine=frequency=220:sample_rate=44100:duration=15" -filter_complex "[0:v]scale=1080:1920,zoompan=z='min(zoom+0.0015,1.15)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=225:s=1080x1920:fps=30[v1];[1:v]scale=1080:1920,zoompan=z='min(zoom+0.0015,1.15)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=225:s=1080x1920:fps=30[v2];[v1][v2]concat=n=2:v=1:a=0[v]" -map "[v]" -map 2:a -c:v libx264 -preset fast -profile:v high -level 4.1 -pix_fmt yuv420p -g 30 -bf 2 -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 -filter:a "volume=0.02" -shortest "${tmpOutput}"`;
+
+    await execPromise(ffmpegCmd, { maxBuffer: 30 * 1024 * 1024 });
+
+    // Clean up temporary slide images
+    try {
+      if (fs.existsSync(img1)) fs.unlinkSync(img1);
+      if (fs.existsSync(img2)) fs.unlinkSync(img2);
+      if (fs.existsSync(tmpDir)) fs.rmdirSync(tmpDir);
+    } catch (e) {}
+
     if (fs.existsSync(tmpOutput) && fs.statSync(tmpOutput).size > 1000) {
       return { filePath: tmpOutput, cleanup };
     }
   } catch (e) {
-    console.warn("FFmpeg mp4 generation warning:", e);
+    console.warn("FFmpeg slide MP4 generation warning:", e);
   }
 
   // Fallback to pre-generated sync boot MP4 buffer
