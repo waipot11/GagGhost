@@ -950,16 +950,32 @@ async function createValidMp4Buffer(story: any, videoBase64?: string): Promise<B
       const tmpOutput = path.join("/tmp", `out_${Date.now()}_${Math.floor(Math.random() * 10000)}.mp4`);
 
       await fs.promises.writeFile(tmpInput, inputBuffer);
-      await execPromise(`/usr/bin/ffmpeg -y -loglevel error -i "${tmpInput}" -c:v libx264 -preset ultrafast -pix_fmt yuv420p -movflags +faststart -c:a aac "${tmpOutput}"`, { maxBuffer: 20 * 1024 * 1024 });
+
+      // Check if input video contains an audio stream via ffprobe
+      let hasAudio = false;
+      try {
+        const probeRes = await execPromise(`/usr/bin/ffprobe -v error -select_streams a -show_entries stream=codec_type -of csv=p=0 "${tmpInput}"`);
+        hasAudio = String(probeRes.stdout || '').trim().includes("audio");
+      } catch (probeErr) {
+        hasAudio = false;
+      }
+
+      let convertCmd = '';
+      if (hasAudio) {
+        convertCmd = `/usr/bin/ffmpeg -y -loglevel error -i "${tmpInput}" -c:v libx264 -preset ultrafast -pix_fmt yuv420p -movflags +faststart -c:a aac -b:a 128k "${tmpOutput}"`;
+      } else {
+        // Add silent audio track so YouTube processes audio/video correctly
+        convertCmd = `/usr/bin/ffmpeg -y -loglevel error -i "${tmpInput}" -f lavfi -i anullsrc=r=44100:cl=mono -c:v libx264 -preset ultrafast -pix_fmt yuv420p -movflags +faststart -c:a aac -b:a 128k -shortest "${tmpOutput}"`;
+      }
+
+      await execPromise(convertCmd, { maxBuffer: 20 * 1024 * 1024 });
       const resultBuffer = await fs.promises.readFile(tmpOutput);
 
       fs.unlink(tmpInput, () => {});
       fs.unlink(tmpOutput, () => {});
       return resultBuffer;
     } catch (err) {
-      console.warn("Failed to convert base64 video with ffmpeg, fallback to raw buffer:", err);
-      const cleanBase64 = videoBase64.replace(/^data:video\/\w+;base64,/, "");
-      return Buffer.from(cleanBase64, "base64");
+      console.warn("Failed to convert base64 video with ffmpeg, generating synthetic 9:16 MP4 fallback:", err);
     }
   }
 
