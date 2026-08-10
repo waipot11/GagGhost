@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
-import { exec } from "child_process";
+import { exec, execSync } from "child_process";
 import util from "util";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
@@ -940,7 +940,17 @@ app.post("/api/youtube/manual-token", (req, res) => {
 });
 
 // Fallback pre-generated 9:16 MP4 buffer for zero-failure video generation
-let FALLBACK_MP4_BUFFER: Buffer | null = null;
+let FALLBACK_MP4_BUFFER: Buffer;
+try {
+  const tmpOutput = path.join("/tmp", "static_fallback_916_boot.mp4");
+  execSync(`/usr/bin/ffmpeg -y -loglevel error -f lavfi -i color=c=0x0f172a:s=1080x1920:r=30:d=6 -f lavfi -i anullsrc=r=44100:cl=stereo:d=6 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -g 30 -movflags +faststart -c:a aac -b:a 128k "${tmpOutput}"`);
+  FALLBACK_MP4_BUFFER = fs.readFileSync(tmpOutput);
+  try { fs.unlinkSync(tmpOutput); } catch (e) {}
+  console.log("⚡ Boot Fallback 9:16 MP4 Buffer generated synchronously, size:", FALLBACK_MP4_BUFFER.length);
+} catch (e) {
+  console.error("Critical: Failed to generate sync boot fallback MP4:", e);
+  FALLBACK_MP4_BUFFER = Buffer.alloc(0);
+}
 
 async function getFallbackMp4Buffer(): Promise<Buffer> {
   if (FALLBACK_MP4_BUFFER && FALLBACK_MP4_BUFFER.length > 0) {
@@ -948,22 +958,15 @@ async function getFallbackMp4Buffer(): Promise<Buffer> {
   }
   try {
     const tmpOutput = path.join("/tmp", `static_fallback_916_${Date.now()}.mp4`);
-    await execPromise(`/usr/bin/ffmpeg -y -loglevel error -f lavfi -i color=c=0x0f172a:s=1080x1920:r=30:d=6 -f lavfi -i anullsrc=r=44100:cl=stereo:d=6 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -g 30 -movflags +faststart -c:a aac -b:a 128k "${tmpOutput}"`, { maxBuffer: 20 * 1024 * 1024 });
-    FALLBACK_MP4_BUFFER = await fs.promises.readFile(tmpOutput);
-    fs.unlink(tmpOutput, () => {});
+    execSync(`/usr/bin/ffmpeg -y -loglevel error -f lavfi -i color=c=0x0f172a:s=1080x1920:r=30:d=6 -f lavfi -i anullsrc=r=44100:cl=stereo:d=6 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -g 30 -movflags +faststart -c:a aac -b:a 128k "${tmpOutput}"`);
+    FALLBACK_MP4_BUFFER = fs.readFileSync(tmpOutput);
+    try { fs.unlinkSync(tmpOutput); } catch (e) {}
     return FALLBACK_MP4_BUFFER;
   } catch (e) {
-    console.error("Failed to generate fallback MP4:", e);
-    throw new Error("ไม่สามารถสร้างไฟล์วิดีโอ MP4 สำหรับ YouTube Shorts ได้");
+    console.error("Failed to generate sync fallback MP4:", e);
+    return FALLBACK_MP4_BUFFER || Buffer.alloc(0);
   }
 }
-
-// Pre-initialize fallback MP4 buffer on server startup
-getFallbackMp4Buffer().then((buf) => {
-  console.log("Fallback 9:16 MP4 buffer pre-initialized successfully, size:", buf.length);
-}).catch((e) => {
-  console.error("Pre-init fallback MP4 buffer error:", e);
-});
 
 // Helper to create a 100% valid playable 9:16 MP4 video buffer using FFmpeg
 async function createValidMp4Buffer(story: any, videoBase64?: string): Promise<Buffer> {
