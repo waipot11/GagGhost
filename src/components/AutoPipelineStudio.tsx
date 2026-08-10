@@ -45,7 +45,37 @@ export const AutoPipelineStudio: React.FC<Props> = ({
   const [showYoutubeModal, setShowYoutubeModal] = useState<boolean>(false);
   const [customRefreshToken, setCustomRefreshToken] = useState<string>('');
   const [customChannelName, setCustomChannelName] = useState<string>('');
+  const [authCodeInput, setAuthCodeInput] = useState<string>('');
   const [youtubeConnecting, setYoutubeConnecting] = useState<boolean>(false);
+
+  const handleExchangeCodeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authCodeInput) {
+      alert('กรุณากรอก Code หรือ URL ที่ได้จาก Google');
+      return;
+    }
+    setYoutubeConnecting(true);
+    try {
+      const res = await fetch('/api/auth/youtube/exchange-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: authCodeInput })
+      });
+      const data = await res.json();
+      if (data.success) {
+        addLog(`✅ ${data.message}`, 'success');
+        setShowYoutubeModal(false);
+        setAuthCodeInput('');
+        fetchCloudAutopilotStatus();
+      } else {
+        alert(data.error || 'เกิดข้อผิดพลาดในการยืนยัน Code');
+      }
+    } catch (e: any) {
+      alert('เกิดข้อผิดพลาด: ' + e.message);
+    } finally {
+      setYoutubeConnecting(false);
+    }
+  };
 
   const handleOAuthConnect = async () => {
     setYoutubeConnecting(true);
@@ -795,45 +825,84 @@ export const AutoPipelineStudio: React.FC<Props> = ({
 
             <div className="space-y-4 text-xs">
               {/* Option 1: Google OAuth Direct */}
-              <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-2">
+              <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
                 <div className="font-bold text-slate-200 flex items-center gap-2">
                   <span className="w-5 h-5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center text-[10px] font-black">1</span>
-                  เข้าสู่ระบบด้วย Google (OAuth 1-Click)
+                  เข้าสู่ระบบด้วย Google (OAuth Direct)
                 </div>
-                <p className="text-slate-400 text-[11px]">
-                  กดปุ่มด้านล่างเพื่ออนุญาตให้ระบบ GagGhost AI สามารถอัปโหลดวิดีโอ Shorts ลงในช่อง YouTube ของคุณได้ทันที
-                </p>
 
-                {/* Redirect URI hint */}
-                <div className="bg-slate-900 p-2.5 rounded-xl border border-slate-800 my-2 text-[11px] text-slate-300 space-y-1">
-                  <div className="text-slate-400 font-bold flex items-center justify-between">
-                    <span>📍 Authorized Redirect URI (สำหรับ Google Console):</span>
+                {/* Explanation Box for GCP Client Types */}
+                <div className="bg-slate-900 p-3 rounded-xl border border-amber-500/30 text-[11px] text-slate-300 space-y-2">
+                  <div className="font-bold text-amber-300 flex items-center gap-1.5">
+                    💡 ไขข้อข้องใจ: ทำไมไม่มีช่อง "Authorized redirect URIs"?
+                  </div>
+                  <div className="text-[11px] text-slate-300 space-y-1.5 leading-relaxed">
+                    <p>
+                      • ตอนนี้คุณสร้าง Client ID เป็นประเภท <strong>"Desktop app"</strong> (แอปพลิเคชันเดสก์ท็อป) หน้า Google Console เลย<strong>ไม่มีช่องให้ใส่ Redirect URIs</strong> เป็นเรื่องปกติครับ!
+                    </p>
+                    <p>
+                      • <strong>ถ้าอยากใช้ประเภท Web application:</strong> ในหน้า Google Cloud Console ให้กดปุ่ม <strong>+ CREATE CREDENTIALS → OAuth client ID</strong> แล้วเลือก <strong>Application type = "Web application"</strong> จากนั้นเลื่อนลงมาล่างสุด จะพบช่อง <strong>"Authorized redirect URIs"</strong>
+                    </p>
+                    <p className="text-amber-200">
+                      • <strong>ข้อควรจำสำหรับ Web app:</strong> Google ไม่อนุญาตให้ใส่ IP ตรงๆ (<code className="text-emerald-400">http://34.87.121.61...</code>) ให้ใช้โดเมน <code className="text-emerald-400 font-mono bg-slate-950 px-1 py-0.5 rounded">http://34.87.121.61.nip.io:3000/api/auth/youtube/callback</code> หรือ <code className="text-emerald-400 font-mono bg-slate-950 px-1 py-0.5 rounded">http://localhost:3000/api/auth/youtube/callback</code> แทนครับ
+                    </p>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+                    <span className="text-slate-400 font-bold">📍 URI สำหรับประเภท Web App:</span>
                     <button
                       type="button"
                       onClick={() => {
-                        const redirectUrl = `${window.location.origin}/api/auth/youtube/callback`;
+                        const redirectUrl = `http://34.87.121.61.nip.io:3000/api/auth/youtube/callback`;
                         navigator.clipboard.writeText(redirectUrl);
                         alert('ก๊อปปี้ Redirect URI เรียบร้อยแล้ว:\n' + redirectUrl);
                       }}
                       className="text-[10px] text-amber-400 hover:underline cursor-pointer bg-amber-950/60 px-2 py-0.5 rounded border border-amber-800/50"
                     >
-                      📋 คัดลอก URI
+                      📋 คัดลอก URI (nip.io)
                     </button>
                   </div>
                   <code className="block text-[10px] text-emerald-400 font-mono bg-slate-950 p-1.5 rounded border border-slate-800 break-all select-all">
-                    {typeof window !== 'undefined' ? `${window.location.origin}/api/auth/youtube/callback` : '/api/auth/youtube/callback'}
+                    http://34.87.121.61.nip.io:3000/api/auth/youtube/callback
                   </code>
                 </div>
 
                 <button
                   onClick={handleOAuthConnect}
                   disabled={youtubeConnecting}
-                  className="w-full mt-2 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-bold py-2.5 px-4 rounded-xl transition-all shadow flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-bold py-2.5 px-4 rounded-xl transition-all shadow flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                 >
                   <Youtube className="w-4 h-4 fill-white" />
-                  {youtubeConnecting ? 'กำลังเชื่อมต่อ...' : 'เข้าสู่ระบบด้วย Google (ผูกช่อง YouTube)'}
+                  {youtubeConnecting ? 'กำลังเปิดหน้าล็อกอิน...' : '▶ กดที่นี่เพื่อเปิดหน้าล็อกอิน Google (ผูกช่อง)'}
                 </button>
               </div>
+
+              {/* Option 1.5: Paste Auth Code or URL */}
+              <form onSubmit={handleExchangeCodeSubmit} className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-2">
+                <div className="font-bold text-slate-200 flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-cyan-500 text-slate-950 flex items-center justify-center text-[10px] font-black">1.5</span>
+                  ยืนยันด้วย Authorization Code หรือ URL จาก Google
+                </div>
+                <p className="text-slate-400 text-[11px]">
+                  หากเปิดหน้าล็อกอิน Google แล้วได้รับ Code หรือโดน Redirect ไปหน้าที่มี <code className="text-amber-300">code=4/0A...</code> สามารถก๊อปปี้ Code หรือ URL ทั้งหมดมาวางที่นี่เพื่อยืนยันได้ทันที
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="วาง Code หรือ URL ที่มี code=..."
+                    value={authCodeInput}
+                    onChange={(e) => setAuthCodeInput(e.target.value)}
+                    className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-400"
+                  />
+                  <button
+                    type="submit"
+                    disabled={youtubeConnecting || !authCodeInput}
+                    className="bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs transition-all disabled:opacity-50 cursor-pointer shrink-0"
+                  >
+                    ยืนยัน Code
+                  </button>
+                </div>
+              </form>
 
               {/* Option 2: Manual Refresh Token */}
               <form onSubmit={handleManualTokenSubmit} className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">

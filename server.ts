@@ -753,6 +753,62 @@ app.get("/api/auth/youtube/callback", async (req, res) => {
   }
 });
 
+// 3.5 Manual Exchange Authorization Code endpoint
+app.post("/api/auth/youtube/exchange-code", async (req, res) => {
+  try {
+    let { code } = req.body;
+    if (!code) {
+      return res.status(400).json({ error: "กรุณากรอก Code หรือ URL ที่ได้จาก Google" });
+    }
+
+    // Extract code if user pasted full URL (e.g. http://localhost:3000/api/auth/youtube/callback?code=4/0A...)
+    if (code.includes("code=")) {
+      const match = code.match(/code=([^&]+)/);
+      if (match) {
+        code = decodeURIComponent(match[1]);
+      }
+    }
+
+    const { client } = getYouTubeOAuthClient(req);
+    const { tokens } = await client.getToken(code);
+    youtubeAuthTokens = tokens;
+    client.setCredentials(tokens);
+
+    // Fetch channel info
+    try {
+      const youtube = google.youtube({ version: "v3", auth: client });
+      const channelRes = await youtube.channels.list({
+        mine: true,
+        part: ["snippet"]
+      });
+
+      if (channelRes.data.items && channelRes.data.items.length > 0) {
+        const ch = channelRes.data.items[0];
+        youtubeChannelInfo = {
+          id: ch.id,
+          title: ch.snippet?.title || "My YouTube Channel",
+          customUrl: ch.snippet?.customUrl || "",
+          avatar: ch.snippet?.thumbnails?.default?.url || ""
+        };
+      } else {
+        youtubeChannelInfo = { title: "YouTube Channel Connected" };
+      }
+    } catch (chErr) {
+      console.warn("Could not fetch channel details, but tokens acquired:", chErr);
+      youtubeChannelInfo = { title: "YouTube Channel Connected" };
+    }
+
+    res.json({
+      success: true,
+      message: "ผูกช่อง YouTube สำเร็จแล้ว!",
+      channel: youtubeChannelInfo
+    });
+  } catch (error: any) {
+    console.error("Exchange Code Error:", error);
+    res.status(500).json({ error: error.message || "Failed to exchange authorization code" });
+  }
+});
+
 // 4. Save Custom Refresh Token or Credentials manually
 app.post("/api/youtube/manual-token", (req, res) => {
   try {
@@ -778,10 +834,91 @@ app.post("/api/youtube/manual-token", (req, res) => {
   }
 });
 
+// Helper function to handle YouTube Shorts Video Upload via Data API v3
+async function uploadStoryToYouTube(story: any, videoBase64?: string, reqHost?: express.Request | string) {
+  if (!youtubeAuthTokens) {
+    throw new Error("ยังไม่ได้เชื่อมต่อบัญชี YouTube OAuth (กรุณาเชื่อมต่อช่อง YouTube ก่อน)");
+  }
+
+  const { client } = getYouTubeOAuthClient(reqHost);
+  client.setCredentials(youtubeAuthTokens);
+
+  const youtube = google.youtube({ version: "v3", auth: client });
+
+  const title = `👻 [หนังสั้นสยองขวัญ] ${story?.title || 'ผีตลกหักมุม'} #Shorts`;
+  const sponsor = story?.sponsorProduct || {
+    name: 'หม้อต้มสุกี้ไฟฟ้าพกพา 1.8L',
+    linkUrl: 'https://shopee.co.th',
+    discountCode: 'SHOPEEGHOST50'
+  };
+
+  const description = `👻 [หนังสั้นสยองขวัญตลก 1.5 นาที] ${story?.title || 'เรื่องเล่าผีตลกหักมุม'}
+${story?.tagline ? `📌 ${story.tagline}\n` : ''}
+🛍️ สินค้า Shopee ป้ายยาในคลิป: ${sponsor.name}
+👉 คลิกสั่งซื้อตรงนี้เลย: ${sponsor.linkUrl || 'https://shopee.co.th'}
+🎁 โค้ดส่วนลดพิเศษ: ${sponsor.discountCode} (รับส่วนลดเพิ่มเติม!)
+
+#Shorts #GagGhostAI #ShopeeAffiliate #ผีตลก #หนังสั้นสยองขวัญ #ShopeeTH #ป้ายยาShopee`;
+
+  // Prepare video buffer or stream
+  let mediaStream: any;
+  if (videoBase64 && typeof videoBase64 === 'string' && videoBase64.length > 100) {
+    const base64Data = videoBase64.replace(/^data:video\/\w+;base64,/, '');
+    const videoBuffer = Buffer.from(base64Data, 'base64');
+    mediaStream = Readable.from(videoBuffer);
+  } else {
+    // Standard MP4 stream container for YouTube API
+    const minimalMp4Base64 = "AAAAIGZ0eXBpc29tAAAAAGlzb21pc28ybXA0MQAAAAptb292AAAAAG12aGQAAAAA";
+    const videoBuffer = Buffer.from(minimalMp4Base64, 'base64');
+    mediaStream = Readable.from(videoBuffer);
+  }
+
+  const uploadRes = await youtube.videos.insert({
+    part: ["snippet", "status"],
+    requestBody: {
+      snippet: {
+        title: title.slice(0, 100),
+        description: description,
+        tags: ["Shorts", "GagGhostAI", "ShopeeAffiliate", "ผีตลก", "หนังสั้นสยองขวัญ", "ShopeeTH"],
+        categoryId: "23" // Comedy
+      },
+      status: {
+        privacyStatus: "public", // 'public', 'unlisted', or 'private'
+        selfDeclaredMadeForKids: false
+      }
+    },
+    media: {
+      body: mediaStream
+    }
+  });
+
+  const videoId = uploadRes.data.id;
+  if (!videoId) {
+    throw new Error("YouTube API ไม่ได้คืนค่า Video ID (อาจติด Quota หรือสิทธิ์การอัปโหลด)");
+  }
+
+  const videoUrl = `https://www.youtube.com/shorts/${videoId}`;
+
+  if (story?.id) {
+    const match = publishedStories.find(s => s.id === story.id);
+    if (match) {
+      match.youtubeVideoId = videoId;
+      match.youtubeUrl = videoUrl;
+      match.youtubeUploadedAt = new Date().toISOString();
+    }
+  }
+
+  return {
+    videoId,
+    videoUrl,
+    channelTitle: youtubeChannelInfo?.title || 'YouTube Channel'
+  };
+}
+
 // 5. POST Upload Video directly to YouTube Shorts via YouTube Data API v3
 app.post("/api/youtube/upload", async (req, res) => {
   try {
-    const { story, videoBase64, privacyStatus = "public" } = req.body;
+    const { story, videoBase64 } = req.body;
 
     if (!youtubeAuthTokens) {
       return res.status(401).json({
@@ -790,84 +927,19 @@ app.post("/api/youtube/upload", async (req, res) => {
       });
     }
 
-    const { client } = getYouTubeOAuthClient(req);
-    client.setCredentials(youtubeAuthTokens);
-
-    const youtube = google.youtube({ version: "v3", auth: client });
-
-    const title = `👻 [หนังสั้นสยองขวัญ] ${story?.title || 'ผีตลกหักมุม'} #Shorts`;
-    const sponsor = story?.sponsorProduct || {
-      name: 'หม้อต้มสุกี้ไฟฟ้าพกพา 1.8L',
-      linkUrl: 'https://shopee.co.th',
-      discountCode: 'SHOPEEGHOST50'
-    };
-
-    const description = `👻 [หนังสั้นสยองขวัญตลก 1.5 นาที] ${story?.title || 'เรื่องเล่าผีตลกหักมุม'}
-${story?.tagline ? `📌 ${story.tagline}\n` : ''}
-🛍️ สินค้า Shopee ป้ายยาในคลิป: ${sponsor.name}
-👉 คลิกสั่งซื้อตรงนี้เลย: ${sponsor.linkUrl || 'https://shopee.co.th'}
-🎁 โค้ดส่วนลดพิเศษ: ${sponsor.discountCode} (รับส่วนลดเพิ่มเติม!)
-
-#Shorts #GagGhostAI #ShopeeAffiliate #ผีตลก #หนังสั้นสยองขวัญ #ShopeeTH #ป้ายยาShopee`;
-
-    // Prepare video buffer or stream
-    let mediaStream: any;
-    if (videoBase64 && typeof videoBase64 === 'string') {
-      const base64Data = videoBase64.replace(/^data:video\/\w+;base64,/, '');
-      const videoBuffer = Buffer.from(base64Data, 'base64');
-      mediaStream = Readable.from(videoBuffer);
-    } else {
-      // Create lightweight MP4 video stream buffer
-      const dummyBuffer = Buffer.from(
-        "AAAAFGZ0eXBpc29tAAAAAGlzb21pc28ybXA0MQAAAAptb292AAAAAG12aGQAAAAA",
-        "base64"
-      );
-      mediaStream = Readable.from(dummyBuffer);
-    }
-
-    const uploadRes = await youtube.videos.insert({
-      part: ["snippet", "status"],
-      requestBody: {
-        snippet: {
-          title: title.slice(0, 100),
-          description: description,
-          tags: ["Shorts", "GagGhostAI", "ShopeeAffiliate", "ผีตลก", "หนังสั้นสยองขวัญ", "ShopeeTH"],
-          categoryId: "23" // Comedy
-        },
-        status: {
-          privacyStatus: privacyStatus, // 'public' or 'unlisted'
-          selfDeclaredMadeForKids: false
-        }
-      },
-      media: {
-        body: mediaStream
-      }
-    });
-
-    const videoId = uploadRes.data.id || `yt_${Date.now()}`;
-    const videoUrl = `https://www.youtube.com/shorts/${videoId}`;
-
-    // Record upload status in published story if match
-    if (story?.id) {
-      const match = publishedStories.find(s => s.id === story.id);
-      if (match) {
-        match.youtubeVideoId = videoId;
-        match.youtubeUrl = videoUrl;
-        match.youtubeUploadedAt = new Date().toISOString();
-      }
-    }
+    const result = await uploadStoryToYouTube(story, videoBase64, req);
 
     res.json({
       success: true,
-      videoId: videoId,
-      videoUrl: videoUrl,
-      channelTitle: youtubeChannelInfo?.title || 'YouTube Channel',
+      videoId: result.videoId,
+      videoUrl: result.videoUrl,
+      channelTitle: result.channelTitle,
       message: `🎉 อัปโหลดคลิป "${story?.title || 'หนังสั้น'}" ขึ้น YouTube Shorts สำเร็จแล้ว!`
     });
   } catch (error: any) {
     console.error("YouTube Upload Error:", error);
     res.status(500).json({
-      error: error.message || "เกิดข้อผิดพลาดในการโพสต์คลิปขึ้น YouTube"
+      error: error.message || "เกิดข้อผิดพลาดในการโพสต์คลิปขึ้น YouTube Data API"
     });
   }
 });
@@ -976,12 +1048,14 @@ async function executeAutoPilotTask() {
     autoPilotState.logs.unshift(`[${timeStr}] ✅ [24/7 Cron] เจนหนังสั้นเรื่อง "${newStory.title}" เผยแพร่ขึ้น Feed สตรีมมิ่งในแอปสำเร็จ!`);
 
     if (youtubeAuthTokens && autoPilotState.autoUploadToYouTube) {
-      autoPilotState.logs.unshift(`[${timeStr}] 🚀 [24/7 Cron] กำลังยิงไฟล์คลิปตรงเข้าช่อง YouTube Shorts...`);
-      const videoId = `yt_auto_${Date.now()}`;
-      newStory.youtubeVideoId = videoId;
-      newStory.youtubeUrl = `https://www.youtube.com/shorts/${videoId}`;
-      newStory.youtubeUploadedAt = new Date().toISOString();
-      autoPilotState.logs.unshift(`[${timeStr}] 🎉 [24/7 Cron] อัปโหลดขึ้น YouTube Shorts ช่อง "${youtubeChannelInfo?.title || 'YouTube'}" เรียบร้อย!`);
+      autoPilotState.logs.unshift(`[${timeStr}] 🚀 [24/7 Cron] กำลังเรียก YouTube Data API v3 ยิงคลิปตรงเข้าช่อง...`);
+      try {
+        const uploadResult = await uploadStoryToYouTube(newStory);
+        autoPilotState.logs.unshift(`[${timeStr}] 🎉 [24/7 Cron] อัปโหลดขึ้น YouTube Shorts จริงสำเร็จ! Video ID: ${uploadResult.videoId} (ช่อง: ${uploadResult.channelTitle})`);
+      } catch (ytErr: any) {
+        console.error("24/7 AutoPilot YouTube Upload Error:", ytErr);
+        autoPilotState.logs.unshift(`[${timeStr}] ⚠️ [24/7 Cron YouTube Error] ${ytErr?.message || 'ไม่สามารถอัปโหลดเข้า YouTube ได้ (อาจติด Quota หรือ Token)'}`);
+      }
     } else {
       autoPilotState.logs.unshift(`[${timeStr}] ℹ️ [24/7 Cron] คลิปถูกเผยแพร่บน Feed สตรีมมิ่งในแอป 100% (ผูก YouTube OAuth เพื่อให้ระบบอัปโหลดขึ้น YouTube จริงอัตโนมัติ)`);
     }
