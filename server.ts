@@ -943,7 +943,7 @@ app.post("/api/youtube/manual-token", (req, res) => {
 let FALLBACK_MP4_BUFFER: Buffer;
 try {
   const tmpOutput = path.join("/tmp", "static_fallback_916_boot.mp4");
-  execSync(`/usr/bin/ffmpeg -y -loglevel error -f lavfi -i "color=c=0x0f172a:s=1080x1920:r=30:d=10" -f lavfi -i "sine=frequency=220:sample_rate=44100:duration=10" -c:v libx264 -preset fast -profile:v main -level 4.0 -pix_fmt yuv420p -g 30 -bf 2 -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 -filter:a "volume=0.01" -shortest "${tmpOutput}"`);
+  execSync(`/usr/bin/ffmpeg -y -loglevel error -f lavfi -i "color=c=0x0f172a:s=1080x1920:r=30:d=10" -f lavfi -i "sine=frequency=220:sample_rate=44100:duration=10" -c:v libx264 -preset fast -profile:v main -level 4.0 -pix_fmt yuv420p -g 30 -keyint_min 30 -sc_threshold 0 -bf 0 -avoid_negative_ts make_zero -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 -filter:a "volume=0.01" -shortest "${tmpOutput}"`);
   FALLBACK_MP4_BUFFER = fs.readFileSync(tmpOutput);
   try { fs.unlinkSync(tmpOutput); } catch (e) {}
   console.log("⚡ Boot Fallback 9:16 MP4 Buffer generated synchronously, size:", FALLBACK_MP4_BUFFER.length);
@@ -958,7 +958,7 @@ async function getFallbackMp4Buffer(): Promise<Buffer> {
   }
   try {
     const tmpOutput = path.join("/tmp", `static_fallback_916_${Date.now()}.mp4`);
-    execSync(`/usr/bin/ffmpeg -y -loglevel error -f lavfi -i "color=c=0x0f172a:s=1080x1920:r=30:d=10" -f lavfi -i "sine=frequency=220:sample_rate=44100:duration=10" -c:v libx264 -preset fast -profile:v main -level 4.0 -pix_fmt yuv420p -g 30 -bf 2 -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 -filter:a "volume=0.01" -shortest "${tmpOutput}"`);
+    execSync(`/usr/bin/ffmpeg -y -loglevel error -f lavfi -i "color=c=0x0f172a:s=1080x1920:r=30:d=10" -f lavfi -i "sine=frequency=220:sample_rate=44100:duration=10" -c:v libx264 -preset fast -profile:v main -level 4.0 -pix_fmt yuv420p -g 30 -keyint_min 30 -sc_threshold 0 -bf 0 -avoid_negative_ts make_zero -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 -filter:a "volume=0.01" -shortest "${tmpOutput}"`);
     FALLBACK_MP4_BUFFER = fs.readFileSync(tmpOutput);
     try { fs.unlinkSync(tmpOutput); } catch (e) {}
     return FALLBACK_MP4_BUFFER;
@@ -998,9 +998,9 @@ async function createValidMp4File(story: any, videoBase64?: string): Promise<{ f
 
       let convertCmd = '';
       if (hasAudio) {
-        convertCmd = `/usr/bin/ffmpeg -y -loglevel error -i "${tmpInput}" -c:v libx264 -preset fast -profile:v high -level 4.1 -pix_fmt yuv420p -g 30 -bf 2 -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 "${tmpOutput}"`;
+        convertCmd = `/usr/bin/ffmpeg -y -loglevel error -i "${tmpInput}" -c:v libx264 -preset fast -profile:v main -level 4.0 -pix_fmt yuv420p -g 30 -keyint_min 30 -sc_threshold 0 -bf 0 -avoid_negative_ts make_zero -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 "${tmpOutput}"`;
       } else {
-        convertCmd = `/usr/bin/ffmpeg -y -loglevel error -i "${tmpInput}" -f lavfi -i "sine=frequency=220:sample_rate=44100" -c:v libx264 -preset fast -profile:v high -level 4.1 -pix_fmt yuv420p -g 30 -bf 2 -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 -filter:a "volume=0.02" -shortest "${tmpOutput}"`;
+        convertCmd = `/usr/bin/ffmpeg -y -loglevel error -i "${tmpInput}" -f lavfi -i "sine=frequency=220:sample_rate=44100" -c:v libx264 -preset fast -profile:v main -level 4.0 -pix_fmt yuv420p -g 30 -keyint_min 30 -sc_threshold 0 -bf 0 -avoid_negative_ts make_zero -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 -filter:a "volume=0.02" -shortest "${tmpOutput}"`;
       }
 
       await execPromise(convertCmd, { maxBuffer: 30 * 1024 * 1024 });
@@ -1022,15 +1022,20 @@ async function createValidMp4File(story: any, videoBase64?: string): Promise<{ f
     const img1 = path.join(tmpDir, "slide1.png");
     const img2 = path.join(tmpDir, "slide2.png");
 
-    // Slide 1: Dark Purple Horror Canvas
-    const cmd1 = `/usr/bin/ffmpeg -y -loglevel error -f lavfi -i "color=c=0x0f172a:s=1080x1920" -vframes 1 -vf "drawtext=text='GagGhost AI Shorts':fontsize=56:fontcolor=0xa855f7:x=(w-text_w)/2:y=300" "${img1}"`;
-    // Slide 2: Shopee Deal Canvas
-    const cmd2 = `/usr/bin/ffmpeg -y -loglevel error -f lavfi -i "color=c=0x1e1b4b:s=1080x1920" -vframes 1 -vf "drawtext=text='Shopee Special Deal':fontsize=56:fontcolor=0xf97316:x=(w-text_w)/2:y=300" "${img2}"`;
+    const rawTitle = (story?.title || 'GagGhost AI Shorts').replace(/["'\x27\x22\\:\n\r]/g, ' ');
+    const safeTitle = rawTitle.slice(0, 32);
+    const sponsorName = (story?.sponsorProduct?.name || 'Shopee Special Deal').replace(/["'\x27\x22\\:\n\r]/g, ' ').slice(0, 30);
+    const discountCode = (story?.sponsorProduct?.discountCode || 'SHOPEE50').replace(/["'\x27\x22\\:\n\r]/g, ' ');
+
+    // Slide 1: Dark Purple Horror Canvas with Story Title
+    const cmd1 = `/usr/bin/ffmpeg -y -loglevel error -f lavfi -i "color=c=0x0f172a:s=1080x1920" -vframes 1 -vf "drawtext=text='GagGhost AI Shorts':fontsize=56:fontcolor=0xa855f7:x=(w-text_w)/2:y=250,drawtext=text='${safeTitle}':fontsize=40:fontcolor=white:x=(w-text_w)/2:y=450,drawtext=text='Shopee: ${sponsorName}':fontsize=36:fontcolor=0xf97316:x=(w-text_w)/2:y=1200" "${img1}"`;
+    // Slide 2: Shopee Deal Canvas with Discount Code
+    const cmd2 = `/usr/bin/ffmpeg -y -loglevel error -f lavfi -i "color=c=0x1e1b4b:s=1080x1920" -vframes 1 -vf "drawtext=text='GagGhost AI Shorts':fontsize=56:fontcolor=0xa855f7:x=(w-text_w)/2:y=250,drawtext=text='${safeTitle}':fontsize=40:fontcolor=white:x=(w-text_w)/2:y=450,drawtext=text='Discount Code: ${discountCode}':fontsize=38:fontcolor=0x22c55e:x=(w-text_w)/2:y=1200" "${img2}"`;
 
     await execPromise(cmd1);
     await execPromise(cmd2);
 
-    const ffmpegCmd = `/usr/bin/ffmpeg -y -loglevel error -loop 1 -t 7.5 -i "${img1}" -loop 1 -t 7.5 -i "${img2}" -f lavfi -i "sine=frequency=220:sample_rate=44100:duration=15" -filter_complex "[0:v]scale=1080:1920,zoompan=z='min(zoom+0.0015,1.15)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=225:s=1080x1920:fps=30[v1];[1:v]scale=1080:1920,zoompan=z='min(zoom+0.0015,1.15)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=225:s=1080x1920:fps=30[v2];[v1][v2]concat=n=2:v=1:a=0[v]" -map "[v]" -map 2:a -c:v libx264 -preset fast -profile:v high -level 4.1 -pix_fmt yuv420p -g 30 -bf 2 -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 -filter:a "volume=0.02" -shortest "${tmpOutput}"`;
+    const ffmpegCmd = `/usr/bin/ffmpeg -y -loglevel error -loop 1 -t 7.5 -i "${img1}" -loop 1 -t 7.5 -i "${img2}" -f lavfi -i "sine=frequency=220:sample_rate=44100:duration=15" -filter_complex "[0:v]scale=1080:1920,setsar=1[v1];[1:v]scale=1080:1920,setsar=1[v2];[v1][v2]concat=n=2:v=1:a=0,format=yuv420p[v]" -map "[v]" -map 2:a -c:v libx264 -preset fast -profile:v main -level 4.0 -pix_fmt yuv420p -g 30 -keyint_min 30 -sc_threshold 0 -bf 0 -avoid_negative_ts make_zero -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 -filter:a "volume=0.02" -shortest "${tmpOutput}"`;
 
     await execPromise(ffmpegCmd, { maxBuffer: 30 * 1024 * 1024 });
 
@@ -1084,6 +1089,8 @@ ${story?.tagline ? `📌 ${story.tagline}\n` : ''}
   const { filePath, cleanup } = await createValidMp4File(story, videoBase64);
 
   try {
+    const fileStat = fs.statSync(filePath);
+    console.log(`[YouTube Upload] Starting upload for "${title}", file size: ${fileStat.size} bytes`);
     const fileStream = fs.createReadStream(filePath);
 
     const uploadRes = await youtube.videos.insert({
