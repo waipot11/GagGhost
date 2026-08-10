@@ -998,9 +998,9 @@ async function createValidMp4File(story: any, videoBase64?: string): Promise<{ f
 
       let convertCmd = '';
       if (hasAudio) {
-        convertCmd = `/usr/bin/ffmpeg -y -loglevel error -i "${tmpInput}" -c:v libx264 -preset fast -profile:v main -level 4.0 -pix_fmt yuv420p -g 30 -keyint_min 30 -sc_threshold 0 -bf 0 -avoid_negative_ts make_zero -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 "${tmpOutput}"`;
+        convertCmd = `/usr/bin/ffmpeg -y -loglevel error -i "${tmpInput}" -vf "fps=30,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1" -c:v libx264 -preset fast -profile:v main -level 4.0 -pix_fmt yuv420p -r 30 -g 30 -keyint_min 30 -sc_threshold 0 -bf 0 -avoid_negative_ts make_zero -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 "${tmpOutput}"`;
       } else {
-        convertCmd = `/usr/bin/ffmpeg -y -loglevel error -i "${tmpInput}" -f lavfi -i "sine=frequency=220:sample_rate=44100" -c:v libx264 -preset fast -profile:v main -level 4.0 -pix_fmt yuv420p -g 30 -keyint_min 30 -sc_threshold 0 -bf 0 -avoid_negative_ts make_zero -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 -filter:a "volume=0.02" -shortest "${tmpOutput}"`;
+        convertCmd = `/usr/bin/ffmpeg -y -loglevel error -i "${tmpInput}" -f lavfi -i "sine=frequency=220:sample_rate=44100" -vf "fps=30,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1" -c:v libx264 -preset fast -profile:v main -level 4.0 -pix_fmt yuv420p -r 30 -g 30 -keyint_min 30 -sc_threshold 0 -bf 0 -avoid_negative_ts make_zero -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 -filter:a "volume=0.02" -shortest "${tmpOutput}"`;
       }
 
       await execPromise(convertCmd, { maxBuffer: 30 * 1024 * 1024 });
@@ -1035,7 +1035,7 @@ async function createValidMp4File(story: any, videoBase64?: string): Promise<{ f
     await execPromise(cmd1);
     await execPromise(cmd2);
 
-    const ffmpegCmd = `/usr/bin/ffmpeg -y -loglevel error -loop 1 -t 7.5 -i "${img1}" -loop 1 -t 7.5 -i "${img2}" -f lavfi -i "sine=frequency=220:sample_rate=44100:duration=15" -filter_complex "[0:v]scale=1080:1920,setsar=1[v1];[1:v]scale=1080:1920,setsar=1[v2];[v1][v2]concat=n=2:v=1:a=0,format=yuv420p[v]" -map "[v]" -map 2:a -c:v libx264 -preset fast -profile:v main -level 4.0 -pix_fmt yuv420p -g 30 -keyint_min 30 -sc_threshold 0 -bf 0 -avoid_negative_ts make_zero -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 -filter:a "volume=0.02" -shortest "${tmpOutput}"`;
+    const ffmpegCmd = `/usr/bin/ffmpeg -y -loglevel error -loop 1 -r 30 -t 7.5 -i "${img1}" -loop 1 -r 30 -t 7.5 -i "${img2}" -f lavfi -i "sine=frequency=220:sample_rate=44100:duration=15" -filter_complex "[0:v]fps=30,scale=1080:1920,setsar=1[v1];[1:v]fps=30,scale=1080:1920,setsar=1[v2];[v1][v2]concat=n=2:v=1:a=0,fps=30,format=yuv420p[v]" -map "[v]" -map 2:a -c:v libx264 -preset fast -profile:v main -level 4.0 -pix_fmt yuv420p -r 30 -g 30 -keyint_min 30 -sc_threshold 0 -bf 0 -avoid_negative_ts make_zero -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 -filter:a "volume=0.02" -shortest "${tmpOutput}"`;
 
     await execPromise(ffmpegCmd, { maxBuffer: 30 * 1024 * 1024 });
 
@@ -1135,13 +1135,14 @@ ${story?.tagline ? `📌 ${story.tagline}\n` : ''}
 
     console.log(`[YouTube Resumable Upload] Session created successfully, transferring ${fileSize} bytes...`);
 
-    // Step 2: Upload raw MP4 binary buffer directly via PUT with exact Content-Length
+    // Step 2: Upload raw MP4 binary buffer directly via PUT with exact Content-Length & Content-Range
     const uploadRes = await fetch(uploadUrl, {
       method: "PUT",
       headers: {
         "Authorization": `Bearer ${accessToken}`,
         "Content-Type": "video/mp4",
-        "Content-Length": fileSize.toString()
+        "Content-Length": fileSize.toString(),
+        "Content-Range": `bytes 0-${fileSize - 1}/${fileSize}`
       },
       body: videoBuffer
     });
