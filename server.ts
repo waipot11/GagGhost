@@ -950,7 +950,7 @@ async function createValidMp4Buffer(story: any, videoBase64?: string): Promise<B
       const tmpOutput = path.join("/tmp", `out_${Date.now()}_${Math.floor(Math.random() * 10000)}.mp4`);
 
       await fs.promises.writeFile(tmpInput, inputBuffer);
-      await execPromise(`ffmpeg -y -i "${tmpInput}" -c:v libx264 -preset ultrafast -pix_fmt yuv420p -movflags +faststart -c:a aac "${tmpOutput}"`);
+      await execPromise(`/usr/bin/ffmpeg -y -loglevel error -i "${tmpInput}" -c:v libx264 -preset ultrafast -pix_fmt yuv420p -movflags +faststart -c:a aac "${tmpOutput}"`, { maxBuffer: 20 * 1024 * 1024 });
       const resultBuffer = await fs.promises.readFile(tmpOutput);
 
       fs.unlink(tmpInput, () => {});
@@ -967,8 +967,8 @@ async function createValidMp4Buffer(story: any, videoBase64?: string): Promise<B
   const tmpOutput = path.join("/tmp", `gen_${Date.now()}_${Math.floor(Math.random() * 10000)}.mp4`);
 
   try {
-    const ffmpegCmd = `ffmpeg -y -f lavfi -i color=c=0x0f172a:s=1080x1920:r=30:d=10 -f lavfi -i sine=f=440:r=44100:d=10 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -g 30 -movflags +faststart -c:a aac -b:a 128k -shortest "${tmpOutput}"`;
-    await execPromise(ffmpegCmd);
+    const ffmpegCmd = `/usr/bin/ffmpeg -y -loglevel error -f lavfi -i color=c=0x0f172a:s=1080x1920:r=30:d=6 -f lavfi -i sine=f=440:r=44100:d=6 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -g 30 -movflags +faststart -c:a aac -b:a 128k -shortest "${tmpOutput}"`;
+    await execPromise(ffmpegCmd, { maxBuffer: 20 * 1024 * 1024 });
     const mp4Buffer = await fs.promises.readFile(tmpOutput);
     fs.unlink(tmpOutput, () => {});
     return mp4Buffer;
