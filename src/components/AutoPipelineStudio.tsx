@@ -16,7 +16,10 @@ import {
   Terminal,
   RefreshCw,
   Flame,
-  Key
+  Key,
+  Youtube,
+  Link,
+  X
 } from 'lucide-react';
 
 interface Props {
@@ -39,6 +42,59 @@ export const AutoPipelineStudio: React.FC<Props> = ({
 
   // 24/7 Cloud Autopilot Server State
   const [cloudAutopilot, setCloudAutopilot] = useState<any>(null);
+  const [showYoutubeModal, setShowYoutubeModal] = useState<boolean>(false);
+  const [customRefreshToken, setCustomRefreshToken] = useState<string>('');
+  const [customChannelName, setCustomChannelName] = useState<string>('');
+  const [youtubeConnecting, setYoutubeConnecting] = useState<boolean>(false);
+
+  const handleOAuthConnect = async () => {
+    setYoutubeConnecting(true);
+    try {
+      const res = await fetch('/api/auth/youtube/url');
+      const data = await res.json();
+      if (data.authUrl) {
+        window.open(data.authUrl, '_blank');
+        addLog('🔗 เปิดหน้าล็อกอิน Google OAuth สำหรับสิทธิ์อัปโหลด YouTube Shorts ในแท็บใหม่...', 'info');
+      } else {
+        alert('กรุณาตั้งค่า GOOGLE_CLIENT_ID และ GOOGLE_CLIENT_SECRET ในเซิร์ฟเวอร์ก่อน');
+      }
+    } catch (e: any) {
+      alert('ไม่สามารถดึง URL OAuth ได้: ' + e.message);
+    } finally {
+      setYoutubeConnecting(false);
+    }
+  };
+
+  const handleManualTokenSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customRefreshToken) {
+      alert('กรุณากรอก Refresh Token');
+      return;
+    }
+    setYoutubeConnecting(true);
+    try {
+      const res = await fetch('/api/youtube/manual-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          refreshToken: customRefreshToken,
+          channelName: customChannelName || 'ช่อง YouTube ของฉัน'
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        addLog(`✅ ${data.message}`, 'success');
+        setShowYoutubeModal(false);
+        fetchCloudAutopilotStatus();
+      } else {
+        alert(data.error || 'เกิดข้อผิดพลาดในการผูก Token');
+      }
+    } catch (e: any) {
+      alert('เกิดข้อผิดพลาด: ' + e.message);
+    } finally {
+      setYoutubeConnecting(false);
+    }
+  };
 
   const fetchCloudAutopilotStatus = () => {
     fetch('/api/autopilot/status')
@@ -234,13 +290,21 @@ export const AutoPipelineStudio: React.FC<Props> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              onClick={() => setShowYoutubeModal(true)}
+              className="bg-red-600 hover:bg-red-500 text-white font-bold text-xs px-4 py-2.5 rounded-2xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+            >
+              <Youtube className="w-4 h-4 fill-white" />
+              {cloudAutopilot?.youtubeConnected ? `✓ ช่อง: ${cloudAutopilot.youtubeChannelTitle || 'ผูกช่องแล้ว'}` : '🔗 ผูกช่อง YouTube Shorts'}
+            </button>
+
             <button
               onClick={() => handleToggleCloudAutopilot(!cloudAutopilot?.enabled)}
-              className={`px-5 py-2.5 rounded-2xl font-black text-xs transition-all shadow-lg flex items-center gap-2 ${
+              className={`px-5 py-2.5 rounded-2xl font-black text-xs transition-all shadow-lg flex items-center gap-2 cursor-pointer ${
                 cloudAutopilot?.enabled
                   ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-950/80'
-                  : 'bg-red-600 hover:bg-red-500 text-white shadow-red-950'
+                  : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950'
               }`}
             >
               {cloudAutopilot?.enabled ? '✓ สถานะ: เปิดรัน 24/7 อยู่ (กดเพื่อปิด)' : '▶ กดเปิดรันอัตโนมัติ 24/7'}
@@ -248,7 +312,7 @@ export const AutoPipelineStudio: React.FC<Props> = ({
 
             <button
               onClick={handleTriggerCloudAutopilotNow}
-              className="bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs px-4 py-2.5 rounded-2xl border border-slate-700 transition-all flex items-center gap-1.5"
+              className="bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs px-4 py-2.5 rounded-2xl border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer"
               title="ทดสอบรัน Cron Cycle ทันที 1 รอบ"
             >
               <Zap className="w-4 h-4 fill-amber-300" />
@@ -281,11 +345,20 @@ export const AutoPipelineStudio: React.FC<Props> = ({
             </span>
           </div>
 
-          <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
-            <span className="text-[10px] text-slate-400 block font-semibold">การเชื่อมต่อช่อง YouTube:</span>
-            <span className={`text-xs font-bold block mt-1 ${cloudAutopilot?.youtubeConnected ? 'text-emerald-400' : 'text-amber-400'}`}>
-              {cloudAutopilot?.youtubeConnected ? `✓ ${cloudAutopilot.youtubeChannelTitle || 'ผูกช่องเรียบร้อย'}` : '⚠️ ยังไม่ได้ผูกช่อง'}
-            </span>
+          <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 flex flex-col justify-between">
+            <div>
+              <span className="text-[10px] text-slate-400 block font-semibold">การเชื่อมต่อช่อง YouTube:</span>
+              <span className={`text-xs font-bold block mt-0.5 ${cloudAutopilot?.youtubeConnected ? 'text-emerald-400' : 'text-amber-400'}`}>
+                {cloudAutopilot?.youtubeConnected ? `✓ ${cloudAutopilot.youtubeChannelTitle || 'ผูกช่องเรียบร้อย'}` : '⚠️ ยังไม่ได้ผูกช่อง'}
+              </span>
+            </div>
+            <button
+              onClick={() => setShowYoutubeModal(true)}
+              className="mt-2 w-full bg-red-600 hover:bg-red-500 text-white font-bold text-[11px] py-1.5 px-2 rounded-xl transition-all shadow flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Youtube className="w-3.5 h-3.5" />
+              {cloudAutopilot?.youtubeConnected ? 'จัดการ/เปลี่ยนช่อง' : '🔗 กดผูกช่อง YouTube'}
+            </button>
           </div>
 
           <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
@@ -698,6 +771,90 @@ export const AutoPipelineStudio: React.FC<Props> = ({
           </div>
         </div>
       </div>
+
+      {/* YouTube Connection Modal */}
+      {showYoutubeModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 w-full max-w-lg rounded-3xl shadow-2xl p-6 text-slate-100 relative animate-in fade-in zoom-in duration-200">
+            <button
+              onClick={() => setShowYoutubeModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white p-2 rounded-xl bg-slate-800"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 bg-red-950/80 border border-red-500/50 rounded-2xl text-red-500">
+                <Youtube className="w-8 h-8" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-white">ผูกช่อง YouTube Shorts อัตโนมัติ</h3>
+                <p className="text-xs text-slate-300">เชื่อมต่อช่องเพื่อให้ออโต้ไพลอตโพสต์คลิปหนังสั้นอัตโนมัติ 24 ชั่วโมง</p>
+              </div>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              {/* Option 1: Google OAuth Direct */}
+              <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-2">
+                <div className="font-bold text-slate-200 flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center text-[10px] font-black">1</span>
+                  เข้าสู่ระบบด้วย Google (OAuth 1-Click)
+                </div>
+                <p className="text-slate-400 text-[11px]">
+                  กดปุ่มด้านล่างเพื่ออนุญาตให้ระบบ GagGhost AI สามารถอัปโหลดวิดีโอ Shorts ลงในช่อง YouTube ของคุณได้ทันที
+                </p>
+                <button
+                  onClick={handleOAuthConnect}
+                  disabled={youtubeConnecting}
+                  className="w-full mt-2 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-bold py-2.5 px-4 rounded-xl transition-all shadow flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  <Youtube className="w-4 h-4 fill-white" />
+                  {youtubeConnecting ? 'กำลังเชื่อมต่อ...' : 'เข้าสู่ระบบด้วย Google (ผูกช่อง YouTube)'}
+                </button>
+              </div>
+
+              {/* Option 2: Manual Refresh Token */}
+              <form onSubmit={handleManualTokenSubmit} className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
+                <div className="font-bold text-slate-200 flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center text-[10px] font-black">2</span>
+                  กรอก YouTube Refresh Token ด้วยตนเอง
+                </div>
+                <p className="text-slate-400 text-[11px]">
+                  หากใช้ Google Cloud OAuth Client Credentials (refresh_token) บนเซิร์ฟเวอร์ GCP
+                </p>
+                <div>
+                  <label className="text-[10px] text-slate-400 font-bold block mb-1">ชื่อช่อง YouTube:</label>
+                  <input
+                    type="text"
+                    placeholder="เช่น: GagGhost Shorts TH"
+                    value={customChannelName}
+                    onChange={(e) => setCustomChannelName(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-400 font-bold block mb-1">OAuth Refresh Token:</label>
+                  <input
+                    type="password"
+                    placeholder="1//0gXXXXX..."
+                    value={customRefreshToken}
+                    onChange={(e) => setCustomRefreshToken(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={youtubeConnecting}
+                  className="w-full bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold py-2 px-4 rounded-xl border border-slate-700 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  <Link className="w-3.5 h-3.5" />
+                  บันทึก Refresh Token
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
