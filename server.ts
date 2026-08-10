@@ -943,7 +943,7 @@ app.post("/api/youtube/manual-token", (req, res) => {
 let FALLBACK_MP4_BUFFER: Buffer;
 try {
   const tmpOutput = path.join("/tmp", "static_fallback_916_boot.mp4");
-  execSync(`/usr/bin/ffmpeg -y -loglevel error -f lavfi -i color=c=0x0f172a:s=1080x1920:r=30:d=6 -f lavfi -i anullsrc=r=44100:cl=stereo:d=6 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -g 30 -movflags +faststart -c:a aac -b:a 128k "${tmpOutput}"`);
+  execSync(`/usr/bin/ffmpeg -y -loglevel error -f lavfi -i "color=c=0x0f172a:s=1080x1920:r=30:d=10" -f lavfi -i "sine=frequency=220:sample_rate=44100:duration=10" -c:v libx264 -preset fast -profile:v main -level 4.0 -pix_fmt yuv420p -g 30 -bf 2 -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 -filter:a "volume=0.01" -shortest "${tmpOutput}"`);
   FALLBACK_MP4_BUFFER = fs.readFileSync(tmpOutput);
   try { fs.unlinkSync(tmpOutput); } catch (e) {}
   console.log("⚡ Boot Fallback 9:16 MP4 Buffer generated synchronously, size:", FALLBACK_MP4_BUFFER.length);
@@ -958,7 +958,7 @@ async function getFallbackMp4Buffer(): Promise<Buffer> {
   }
   try {
     const tmpOutput = path.join("/tmp", `static_fallback_916_${Date.now()}.mp4`);
-    execSync(`/usr/bin/ffmpeg -y -loglevel error -f lavfi -i color=c=0x0f172a:s=1080x1920:r=30:d=6 -f lavfi -i anullsrc=r=44100:cl=stereo:d=6 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -g 30 -movflags +faststart -c:a aac -b:a 128k "${tmpOutput}"`);
+    execSync(`/usr/bin/ffmpeg -y -loglevel error -f lavfi -i "color=c=0x0f172a:s=1080x1920:r=30:d=10" -f lavfi -i "sine=frequency=220:sample_rate=44100:duration=10" -c:v libx264 -preset fast -profile:v main -level 4.0 -pix_fmt yuv420p -g 30 -bf 2 -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 -filter:a "volume=0.01" -shortest "${tmpOutput}"`);
     FALLBACK_MP4_BUFFER = fs.readFileSync(tmpOutput);
     try { fs.unlinkSync(tmpOutput); } catch (e) {}
     return FALLBACK_MP4_BUFFER;
@@ -998,10 +998,10 @@ async function createValidMp4File(story: any, videoBase64?: string): Promise<{ f
 
       let convertCmd = '';
       if (hasAudio) {
-        convertCmd = `/usr/bin/ffmpeg -y -loglevel error -i "${tmpInput}" -c:v libx264 -preset ultrafast -pix_fmt yuv420p -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 "${tmpOutput}"`;
+        convertCmd = `/usr/bin/ffmpeg -y -loglevel error -i "${tmpInput}" -c:v libx264 -preset fast -profile:v main -level 4.0 -pix_fmt yuv420p -g 30 -bf 2 -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 "${tmpOutput}"`;
       } else {
-        // Add silent audio track so YouTube processes audio/video correctly
-        convertCmd = `/usr/bin/ffmpeg -y -loglevel error -i "${tmpInput}" -f lavfi -i anullsrc=r=44100:cl=stereo -c:v libx264 -preset ultrafast -pix_fmt yuv420p -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 -shortest "${tmpOutput}"`;
+        // Add valid audio track (sine wave) so YouTube processes audio/video correctly
+        convertCmd = `/usr/bin/ffmpeg -y -loglevel error -i "${tmpInput}" -f lavfi -i "sine=frequency=220:sample_rate=44100" -c:v libx264 -preset fast -profile:v main -level 4.0 -pix_fmt yuv420p -g 30 -bf 2 -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 -filter:a "volume=0.01" -shortest "${tmpOutput}"`;
       }
 
       await execPromise(convertCmd, { maxBuffer: 20 * 1024 * 1024 });
@@ -1015,9 +1015,12 @@ async function createValidMp4File(story: any, videoBase64?: string): Promise<{ f
     }
   }
 
-  // Generate a 100% valid 9:16 vertical MP4 video (1080x1920, 15 seconds) for YouTube Shorts
+  // Generate a 100% YouTube compliant 9:16 vertical MP4 video (1080x1920, 15 seconds) for YouTube Shorts
   try {
-    const ffmpegCmd = `/usr/bin/ffmpeg -y -loglevel error -f lavfi -i color=c=0x0f172a:s=1080x1920:r=30:d=15 -f lavfi -i anullsrc=r=44100:cl=stereo:d=15 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -g 30 -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 "${tmpOutput}"`;
+    const rawTitle = (story?.title || 'GagGhost AI Shorts').replace(/["'\\:\n\r]/g, ' ');
+    const safeTitle = rawTitle.slice(0, 40);
+    const ffmpegCmd = `/usr/bin/ffmpeg -y -loglevel error -f lavfi -i "color=c=0x0f172a:s=1080x1920:r=30:d=15" -f lavfi -i "sine=frequency=220:sample_rate=44100:duration=15" -vf "drawtext=text='GagGhost AI':fontsize=60:fontcolor=0xa855f7:x=(w-text_w)/2:y=300,drawtext=text='${safeTitle}':fontsize=42:fontcolor=white:x=(w-text_w)/2:y=500" -c:v libx264 -preset fast -profile:v main -level 4.0 -pix_fmt yuv420p -g 30 -bf 2 -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 -filter:a "volume=0.01" -shortest "${tmpOutput}"`;
+
     await execPromise(ffmpegCmd, { maxBuffer: 20 * 1024 * 1024 });
     if (fs.existsSync(tmpOutput) && fs.statSync(tmpOutput).size > 1000) {
       return { filePath: tmpOutput, cleanup };
