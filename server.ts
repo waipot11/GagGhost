@@ -18,17 +18,41 @@ let youtubeAuthTokens: any = null;
 let youtubeChannelInfo: any = null;
 
 // Helper to get OAuth2 Client for YouTube Data API v3
-function getYouTubeOAuthClient(reqHost?: string) {
+function getYouTubeOAuthClient(req?: express.Request | string) {
   const clientId = process.env.GOOGLE_CLIENT_ID || process.env.YOUTUBE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.YOUTUBE_CLIENT_SECRET;
-  const baseUrl = process.env.APP_URL || (reqHost ? `https://${reqHost}` : 'http://localhost:3000');
+
+  let host = 'localhost:3000';
+  let protocol = 'http';
+
+  if (typeof req === 'string') {
+    host = req;
+    protocol = (host.includes('localhost') || /^\d+\.\d+\.\d+\.\d+/.test(host)) ? 'http' : 'https';
+  } else if (req) {
+    host = req.headers.host || 'localhost:3000';
+    const forwardedProto = req.headers['x-forwarded-proto'] as string;
+    if (forwardedProto) {
+      protocol = forwardedProto.split(',')[0].trim();
+    } else {
+      protocol = (host.includes('localhost') || /^\d+\.\d+\.\d+\.\d+/.test(host)) ? 'http' : 'https';
+    }
+  }
+
+  const baseUrl = process.env.APP_URL || `${protocol}://${host}`;
   const redirectUri = `${baseUrl.replace(/\/$/, '')}/api/auth/youtube/callback`;
 
-  return new google.auth.OAuth2(
+  const oauth2Client = new google.auth.OAuth2(
     clientId,
     clientSecret,
     redirectUri
   );
+
+  return {
+    client: oauth2Client,
+    redirectUri,
+    clientId,
+    clientSecret
+  };
 }
 
 // Initialize Gemini Client
@@ -659,17 +683,26 @@ app.get("/api/youtube/status", (req, res) => {
 // 2. Generate Google OAuth Auth URL for YouTube Upload Scope
 app.get("/api/auth/youtube/url", (req, res) => {
   try {
-    const oauth2Client = getYouTubeOAuthClient(req.headers.host);
-    const authUrl = oauth2Client.generateAuthUrl({
+    const { client, redirectUri, clientId } = getYouTubeOAuthClient(req);
+
+    if (!clientId) {
+      return res.status(400).json({
+        error: "ยังไม่ได้ระบุ GOOGLE_CLIENT_ID ในไฟล์ .env ของเซิร์ฟเวอร์",
+        redirectUri
+      });
+    }
+
+    const authUrl = client.generateAuthUrl({
       access_type: "offline",
       prompt: "consent",
+      redirect_uri: redirectUri,
       scope: [
         "https://www.googleapis.com/auth/youtube.upload",
         "https://www.googleapis.com/auth/youtube.readonly",
         "https://www.googleapis.com/auth/userinfo.profile"
       ]
     });
-    res.json({ success: true, authUrl });
+    res.json({ success: true, authUrl, redirectUri });
   } catch (error: any) {
     console.error("Error generating YouTube OAuth URL:", error);
     res.status(500).json({ error: error.message || "Failed to generate OAuth URL" });
@@ -684,14 +717,14 @@ app.get("/api/auth/youtube/callback", async (req, res) => {
       return res.redirect("/?youtube_error=no_oauth_code");
     }
 
-    const oauth2Client = getYouTubeOAuthClient(req.headers.host);
-    const { tokens } = await oauth2Client.getToken(code);
+    const { client } = getYouTubeOAuthClient(req);
+    const { tokens } = await client.getToken(code);
     youtubeAuthTokens = tokens;
-    oauth2Client.setCredentials(tokens);
+    client.setCredentials(tokens);
 
     // Fetch user's channel info
     try {
-      const youtube = google.youtube({ version: "v3", auth: oauth2Client });
+      const youtube = google.youtube({ version: "v3", auth: client });
       const channelRes = await youtube.channels.list({
         mine: true,
         part: ["snippet"]
@@ -757,10 +790,10 @@ app.post("/api/youtube/upload", async (req, res) => {
       });
     }
 
-    const oauth2Client = getYouTubeOAuthClient(req.headers.host);
-    oauth2Client.setCredentials(youtubeAuthTokens);
+    const { client } = getYouTubeOAuthClient(req);
+    client.setCredentials(youtubeAuthTokens);
 
-    const youtube = google.youtube({ version: "v3", auth: oauth2Client });
+    const youtube = google.youtube({ version: "v3", auth: client });
 
     const title = `👻 [หนังสั้นสยองขวัญ] ${story?.title || 'ผีตลกหักมุม'} #Shorts`;
     const sponsor = story?.sponsorProduct || {

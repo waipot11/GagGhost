@@ -56,7 +56,7 @@ export const AutoPipelineStudio: React.FC<Props> = ({
         window.open(data.authUrl, '_blank');
         addLog('🔗 เปิดหน้าล็อกอิน Google OAuth สำหรับสิทธิ์อัปโหลด YouTube Shorts ในแท็บใหม่...', 'info');
       } else {
-        alert('กรุณาตั้งค่า GOOGLE_CLIENT_ID และ GOOGLE_CLIENT_SECRET ในเซิร์ฟเวอร์ก่อน');
+        alert(data.error || 'กรุณาตั้งค่า GOOGLE_CLIENT_ID และ GOOGLE_CLIENT_SECRET ในไฟล์ .env ของเซิร์ฟเวอร์ก่อน');
       }
     } catch (e: any) {
       alert('ไม่สามารถดึง URL OAuth ได้: ' + e.message);
@@ -803,6 +803,28 @@ export const AutoPipelineStudio: React.FC<Props> = ({
                 <p className="text-slate-400 text-[11px]">
                   กดปุ่มด้านล่างเพื่ออนุญาตให้ระบบ GagGhost AI สามารถอัปโหลดวิดีโอ Shorts ลงในช่อง YouTube ของคุณได้ทันที
                 </p>
+
+                {/* Redirect URI hint */}
+                <div className="bg-slate-900 p-2.5 rounded-xl border border-slate-800 my-2 text-[11px] text-slate-300 space-y-1">
+                  <div className="text-slate-400 font-bold flex items-center justify-between">
+                    <span>📍 Authorized Redirect URI (สำหรับ Google Console):</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const redirectUrl = `${window.location.origin}/api/auth/youtube/callback`;
+                        navigator.clipboard.writeText(redirectUrl);
+                        alert('ก๊อปปี้ Redirect URI เรียบร้อยแล้ว:\n' + redirectUrl);
+                      }}
+                      className="text-[10px] text-amber-400 hover:underline cursor-pointer bg-amber-950/60 px-2 py-0.5 rounded border border-amber-800/50"
+                    >
+                      📋 คัดลอก URI
+                    </button>
+                  </div>
+                  <code className="block text-[10px] text-emerald-400 font-mono bg-slate-950 p-1.5 rounded border border-slate-800 break-all select-all">
+                    {typeof window !== 'undefined' ? `${window.location.origin}/api/auth/youtube/callback` : '/api/auth/youtube/callback'}
+                  </code>
+                </div>
+
                 <button
                   onClick={handleOAuthConnect}
                   disabled={youtubeConnecting}
