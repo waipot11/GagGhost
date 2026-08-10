@@ -965,21 +965,16 @@ async function createValidMp4Buffer(story: any, videoBase64?: string): Promise<B
 
   // Generate a 100% valid 9:16 vertical MP4 video (1080x1920) for YouTube Shorts
   const tmpOutput = path.join("/tmp", `gen_${Date.now()}_${Math.floor(Math.random() * 10000)}.mp4`);
-  const safeTitle = String(story?.title || 'GagGhost AI Shorts').replace(/[^a-zA-Z0-9\u0E00-\u0E7F\s]/g, '').slice(0, 40);
 
   try {
-    const ffmpegCmd = `ffmpeg -y -f lavfi -i color=c=0x0f172a:s=1080x1920:d=6 -f lavfi -i sine=f=440:d=6 -vf "drawtext=text='${safeTitle || 'GagGhost AI'}':fontcolor=white:fontsize=40:x=(w-text_w)/2:y=(h-text_h)/2-80,drawtext=text='GagGhost AI Auto-Pilot 24/7':fontcolor=0x38bdf8:fontsize=26:x=(w-text_w)/2:y=(h-text_h)/2+80" -c:v libx264 -preset ultrafast -pix_fmt yuv420p -movflags +faststart -c:a aac "${tmpOutput}"`;
+    const ffmpegCmd = `ffmpeg -y -f lavfi -i color=c=0x0f172a:s=1080x1920:r=30:d=10 -f lavfi -i sine=f=440:r=44100:d=10 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -g 30 -movflags +faststart -c:a aac -b:a 128k -shortest "${tmpOutput}"`;
     await execPromise(ffmpegCmd);
     const mp4Buffer = await fs.promises.readFile(tmpOutput);
     fs.unlink(tmpOutput, () => {});
     return mp4Buffer;
   } catch (e) {
-    console.error("FFmpeg drawtext generation error, fallback to simple ffmpeg render:", e);
-    const ffmpegCmdSimple = `ffmpeg -y -f lavfi -i color=c=0x0f172a:s=1080x1920:d=6 -f lavfi -i sine=f=440:d=6 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -movflags +faststart -c:a aac "${tmpOutput}"`;
-    await execPromise(ffmpegCmdSimple);
-    const mp4Buffer = await fs.promises.readFile(tmpOutput);
-    fs.unlink(tmpOutput, () => {});
-    return mp4Buffer;
+    console.error("FFmpeg mp4 generation error:", e);
+    throw e;
   }
 }
 
@@ -1028,6 +1023,7 @@ ${story?.tagline ? `📌 ${story.tagline}\n` : ''}
       }
     },
     media: {
+      mimeType: "video/mp4",
       body: mediaStream
     }
   });
