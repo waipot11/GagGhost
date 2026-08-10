@@ -942,17 +942,28 @@ app.post("/api/youtube/manual-token", (req, res) => {
 // Fallback pre-generated 9:16 MP4 buffer for zero-failure video generation
 let FALLBACK_MP4_BUFFER: Buffer | null = null;
 
-async function initFallbackMp4() {
+async function getFallbackMp4Buffer(): Promise<Buffer> {
+  if (FALLBACK_MP4_BUFFER && FALLBACK_MP4_BUFFER.length > 0) {
+    return FALLBACK_MP4_BUFFER;
+  }
   try {
-    const tmpOutput = path.join("/tmp", "static_fallback_916.mp4");
+    const tmpOutput = path.join("/tmp", `static_fallback_916_${Date.now()}.mp4`);
     await execPromise(`/usr/bin/ffmpeg -y -loglevel error -f lavfi -i color=c=0x0f172a:s=1080x1920:r=30:d=6 -f lavfi -i anullsrc=r=44100:cl=stereo:d=6 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -g 30 -movflags +faststart -c:a aac -b:a 128k "${tmpOutput}"`, { maxBuffer: 20 * 1024 * 1024 });
     FALLBACK_MP4_BUFFER = await fs.promises.readFile(tmpOutput);
-    console.log("Fallback 9:16 MP4 buffer initialized successfully, size:", FALLBACK_MP4_BUFFER.length);
+    fs.unlink(tmpOutput, () => {});
+    return FALLBACK_MP4_BUFFER;
   } catch (e) {
-    console.error("Failed to pre-init fallback MP4 buffer:", e);
+    console.error("Failed to generate fallback MP4:", e);
+    throw new Error("ไม่สามารถสร้างไฟล์วิดีโอ MP4 สำหรับ YouTube Shorts ได้");
   }
 }
-initFallbackMp4();
+
+// Pre-initialize fallback MP4 buffer on server startup
+getFallbackMp4Buffer().then((buf) => {
+  console.log("Fallback 9:16 MP4 buffer pre-initialized successfully, size:", buf.length);
+}).catch((e) => {
+  console.error("Pre-init fallback MP4 buffer error:", e);
+});
 
 // Helper to create a 100% valid playable 9:16 MP4 video buffer using FFmpeg
 async function createValidMp4Buffer(story: any, videoBase64?: string): Promise<Buffer> {
@@ -1004,17 +1015,9 @@ async function createValidMp4Buffer(story: any, videoBase64?: string): Promise<B
     fs.unlink(tmpOutput, () => {});
     return mp4Buffer;
   } catch (e) {
-    console.warn("FFmpeg mp4 generation warning, using FALLBACK_MP4_BUFFER:", e);
-    if (FALLBACK_MP4_BUFFER) {
-      return FALLBACK_MP4_BUFFER;
-    }
+    console.warn("FFmpeg mp4 generation warning, using getFallbackMp4Buffer():", e);
+    return await getFallbackMp4Buffer();
   }
-
-  if (FALLBACK_MP4_BUFFER) {
-    return FALLBACK_MP4_BUFFER;
-  }
-
-  throw new Error("ไม่สามารถสร้างไฟล์วิดีโอ MP4 สำหรับ YouTube Shorts ได้");
 }
 
 // Helper function to handle YouTube Shorts Video Upload via Data API v3
