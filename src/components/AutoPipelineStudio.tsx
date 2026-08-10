@@ -46,7 +46,48 @@ export const AutoPipelineStudio: React.FC<Props> = ({
   const [customRefreshToken, setCustomRefreshToken] = useState<string>('');
   const [customChannelName, setCustomChannelName] = useState<string>('');
   const [authCodeInput, setAuthCodeInput] = useState<string>('');
+  const [clientIdInput, setClientIdInput] = useState<string>('');
+  const [clientSecretInput, setClientSecretInput] = useState<string>('');
+  const [credentialsSaved, setCredentialsSaved] = useState<boolean>(false);
   const [youtubeConnecting, setYoutubeConnecting] = useState<boolean>(false);
+
+  useEffect(() => {
+    fetch('/api/youtube/credentials')
+      .then(res => res.json())
+      .then(d => {
+        if (d.fullClientId) setClientIdInput(d.fullClientId);
+        if (d.hasClientId && d.hasClientSecret) setCredentialsSaved(true);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleSaveCredentials = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!clientIdInput || !clientSecretInput) {
+      alert('กรุณากรอกทั้ง Client ID และ Client Secret');
+      return;
+    }
+    setYoutubeConnecting(true);
+    try {
+      const res = await fetch('/api/youtube/credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId: clientIdInput, clientSecret: clientSecretInput })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCredentialsSaved(true);
+        addLog('✅ บันทึก Google OAuth Client Credentials เรียบร้อยแล้ว!', 'success');
+        alert('บันทึก Client Credentials สำเร็จ! คุณสามารถกดปุ่มเข้าสู่ระบบด้านล่างได้ทันที');
+      } else {
+        alert(data.error || 'เกิดข้อผิดพลาดในการบันทึก Credentials');
+      }
+    } catch (err: any) {
+      alert('เกิดข้อผิดพลาด: ' + err.message);
+    } finally {
+      setYoutubeConnecting(false);
+    }
+  };
 
   const handleExchangeCodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,13 +121,17 @@ export const AutoPipelineStudio: React.FC<Props> = ({
   const handleOAuthConnect = async () => {
     setYoutubeConnecting(true);
     try {
-      const res = await fetch('/api/auth/youtube/url');
+      const query = new URLSearchParams();
+      if (clientIdInput) query.set('clientId', clientIdInput);
+      if (clientSecretInput) query.set('clientSecret', clientSecretInput);
+
+      const res = await fetch(`/api/auth/youtube/url?${query.toString()}`);
       const data = await res.json();
       if (data.authUrl) {
         window.open(data.authUrl, '_blank');
         addLog('🔗 เปิดหน้าล็อกอิน Google OAuth สำหรับสิทธิ์อัปโหลด YouTube Shorts ในแท็บใหม่...', 'info');
       } else {
-        alert(data.error || 'กรุณาตั้งค่า GOOGLE_CLIENT_ID และ GOOGLE_CLIENT_SECRET ในไฟล์ .env ของเซิร์ฟเวอร์ก่อน');
+        alert(data.error || 'กรุณากรอก Client ID และ Client Secret ในช่องรับข้อมูลด้านบนก่อน');
       }
     } catch (e: any) {
       alert('ไม่สามารถดึง URL OAuth ได้: ' + e.message);
@@ -824,6 +869,54 @@ export const AutoPipelineStudio: React.FC<Props> = ({
             </div>
 
             <div className="space-y-4 text-xs">
+              {/* Step 0: Google Client Credentials Inputs */}
+              <form onSubmit={handleSaveCredentials} className="bg-slate-950 p-4 rounded-2xl border border-indigo-500/40 space-y-3">
+                <div className="font-bold text-indigo-300 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-indigo-500 text-slate-950 flex items-center justify-center text-[10px] font-black">0</span>
+                    กรอก Google OAuth Client Credentials
+                  </div>
+                  {credentialsSaved && (
+                    <span className="text-[10px] text-emerald-400 font-normal bg-emerald-950/80 px-2 py-0.5 rounded-full border border-emerald-800">
+                      ✓ บันทึกคีย์แล้ว
+                    </span>
+                  )}
+                </div>
+                <p className="text-slate-400 text-[11px]">
+                  ก๊อปปี้ <strong>Client ID</strong> และ <strong>Client Secret</strong> จากหน้า Google Cloud Console มาวางที่นี่
+                </p>
+
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Google Client ID:</label>
+                    <input
+                      type="text"
+                      placeholder="เช่น 534076215345-...apps.googleusercontent.com"
+                      value={clientIdInput}
+                      onChange={(e) => setClientIdInput(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Google Client Secret:</label>
+                    <input
+                      type="password"
+                      placeholder="เช่น GOCSPX-xxxx..."
+                      value={clientSecretInput}
+                      onChange={(e) => setClientSecretInput(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-400"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={youtubeConnecting || !clientIdInput || !clientSecretInput}
+                    className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-4 rounded-xl transition-all shadow flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    💾 บันทึก Client Credentials
+                  </button>
+                </div>
+              </form>
+
               {/* Option 1: Google OAuth Direct */}
               <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
                 <div className="font-bold text-slate-200 flex items-center gap-2">

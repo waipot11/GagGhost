@@ -13,14 +13,16 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 app.use(express.json({ limit: "50mb" }));
 
-// In-memory YouTube OAuth Tokens & Channel Cache
+// In-memory YouTube OAuth Tokens, Credentials & Channel Cache
 let youtubeAuthTokens: any = null;
 let youtubeChannelInfo: any = null;
+let customGoogleClientId: string = process.env.GOOGLE_CLIENT_ID || process.env.YOUTUBE_CLIENT_ID || '';
+let customGoogleClientSecret: string = process.env.GOOGLE_CLIENT_SECRET || process.env.YOUTUBE_CLIENT_SECRET || '';
 
 // Helper to get OAuth2 Client for YouTube Data API v3
 function getYouTubeOAuthClient(req?: express.Request | string) {
-  const clientId = process.env.GOOGLE_CLIENT_ID || process.env.YOUTUBE_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.YOUTUBE_CLIENT_SECRET;
+  const clientId = customGoogleClientId || process.env.GOOGLE_CLIENT_ID || process.env.YOUTUBE_CLIENT_ID || '';
+  const clientSecret = customGoogleClientSecret || process.env.GOOGLE_CLIENT_SECRET || process.env.YOUTUBE_CLIENT_SECRET || '';
 
   let host = 'localhost:3000';
   let protocol = 'http';
@@ -680,14 +682,44 @@ app.get("/api/youtube/status", (req, res) => {
   });
 });
 
+// 1.5 GET & POST Credentials Endpoint for Google Client ID & Client Secret
+app.get("/api/youtube/credentials", (req, res) => {
+  res.json({
+    hasClientId: !!customGoogleClientId,
+    clientId: customGoogleClientId ? customGoogleClientId.slice(0, 15) + '...' : '',
+    fullClientId: customGoogleClientId,
+    hasClientSecret: !!customGoogleClientSecret,
+  });
+});
+
+app.post("/api/youtube/credentials", (req, res) => {
+  try {
+    const { clientId, clientSecret } = req.body;
+    if (clientId) customGoogleClientId = clientId.trim();
+    if (clientSecret) customGoogleClientSecret = clientSecret.trim();
+
+    res.json({
+      success: true,
+      message: "บันทึก Google OAuth Client Credentials สำเร็จแล้ว!",
+      hasClientId: !!customGoogleClientId,
+      hasClientSecret: !!customGoogleClientSecret
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Failed to save credentials" });
+  }
+});
+
 // 2. Generate Google OAuth Auth URL for YouTube Upload Scope
 app.get("/api/auth/youtube/url", (req, res) => {
   try {
+    if (req.query.clientId) customGoogleClientId = String(req.query.clientId).trim();
+    if (req.query.clientSecret) customGoogleClientSecret = String(req.query.clientSecret).trim();
+
     const { client, redirectUri, clientId } = getYouTubeOAuthClient(req);
 
     if (!clientId) {
       return res.status(400).json({
-        error: "ยังไม่ได้ระบุ GOOGLE_CLIENT_ID ในไฟล์ .env ของเซิร์ฟเวอร์",
+        error: "ยังไม่ได้ระบุ Client ID (กรุณากรอก Client ID และ Client Secret ในช่องรับข้อมูล)",
         redirectUri
       });
     }
