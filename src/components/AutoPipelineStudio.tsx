@@ -924,39 +924,59 @@ export const AutoPipelineStudio: React.FC<Props> = ({
                   เข้าสู่ระบบด้วย Google (OAuth Direct)
                 </div>
 
-                {/* Explanation Box for GCP Client Types */}
-                <div className="bg-slate-900 p-3 rounded-xl border border-amber-500/30 text-[11px] text-slate-300 space-y-2">
-                  <div className="font-bold text-amber-300 flex items-center gap-1.5">
-                    💡 ไขข้อข้องใจ: ทำไมไม่มีช่อง "Authorized redirect URIs"?
+                {/* Explanation Box for GCP Client Types & Sensitive Scope Error */}
+                <div className="bg-slate-900 p-3.5 rounded-xl border border-amber-500/40 text-[11px] text-slate-300 space-y-2.5">
+                  <div className="font-bold text-amber-300 flex items-center gap-1.5 text-xs">
+                    💡 ทำไมถึงเกิด ERROR 400 invalid_request และวิธีแก้ไขที่ถูกต้อง:
                   </div>
-                  <div className="text-[11px] text-slate-300 space-y-1.5 leading-relaxed">
+                  <div className="text-[11px] text-slate-300 space-y-2 leading-relaxed">
                     <p>
-                      • ตอนนี้คุณสร้าง Client ID เป็นประเภท <strong>"Desktop app"</strong> (แอปพลิเคชันเดสก์ท็อป) หน้า Google Console เลย<strong>ไม่มีช่องให้ใส่ Redirect URIs</strong> เป็นเรื่องปกติครับ!
+                      1. <strong>เหตุผลที่ Google บล็อก IP (http://34.87.121.61...):</strong> YouTube Upload เป็น Sensitive Scope ที่ Google บังคับใช้ <code className="text-emerald-300 font-mono">https://</code> เท่านั้น แต่ Google มีข้อยกเว้นพิเศษให้เฉพาะ <code className="text-emerald-300 font-mono">http://localhost</code>
                     </p>
                     <p>
-                      • <strong>ถ้าอยากใช้ประเภท Web application:</strong> ในหน้า Google Cloud Console ให้กดปุ่ม <strong>+ CREATE CREDENTIALS → OAuth client ID</strong> แล้วเลือก <strong>Application type = "Web application"</strong> จากนั้นเลื่อนลงมาล่างสุด จะพบช่อง <strong>"Authorized redirect URIs"</strong>
+                      2. <strong>ทำไมถึงเกิด 400 invalid_request ก่อนหน้านี้?</strong> เพราะเซิร์ฟเวอร์เคยส่ง Redirect URI ตาม IP ไปให้ Google ทำให้เกิด redirect_uri_mismatch
                     </p>
-                    <p className="text-amber-200">
-                      • <strong>ข้อควรจำสำหรับ Web app:</strong> Google ไม่อนุญาตให้ใส่ IP ตรงๆ (<code className="text-emerald-400">http://34.87.121.61...</code>) ให้ใช้โดเมน <code className="text-emerald-400 font-mono bg-slate-950 px-1 py-0.5 rounded">http://34.87.121.61.nip.io:3000/api/auth/youtube/callback</code> หรือ <code className="text-emerald-400 font-mono bg-slate-950 px-1 py-0.5 rounded">http://localhost:3000/api/auth/youtube/callback</code> แทนครับ
-                    </p>
+                    <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2">
+                      <p className="font-bold text-emerald-400 text-xs">✅ แก้ไขเรียบร้อยแล้ว! วิธีผูกช่องให้สำเร็จใน 2 ขั้นตอนง่ายๆ:</p>
+                      
+                      <div className="space-y-1">
+                        <p className="font-semibold text-slate-200">ขั้นที่ 1: ในหน้า Google Cloud Console ( Authorized redirect URIs)</p>
+                        <p className="text-slate-300 pl-3 border-l-2 border-indigo-500">
+                          ใส่เฉพาะ 2 URIs นี้แล้วกด <strong>SAVE</strong>:
+                          <br />
+                          <code className="text-emerald-300 font-mono select-all">http://localhost:3000/api/auth/youtube/callback</code>
+                          <br />
+                          <code className="text-emerald-300 font-mono select-all">https://ais-pre-qldod5l5jmard5hon3mubh-357144596187.asia-southeast1.run.app/api/auth/youtube/callback</code>
+                        </p>
+                      </div>
+
+                      <div className="space-y-1 pt-1">
+                        <p className="font-semibold text-slate-200">ขั้นที่ 2: กดปุ่มสีแดง ▶ ข้างล่างนี้เพื่อล็อกอิน</p>
+                        <p className="text-slate-300 pl-3 border-l-2 border-cyan-500">
+                          เมื่อล็อกอินสำเร็จ เบราว์เซอร์จะพาไปที่ <code className="text-cyan-300 font-mono">http://localhost:3000/api/auth/youtube/callback?code=4/0A...</code>
+                          <br />
+                          👉 ให้ก๊อปปี้ URL หรือ Code ในช่องที่อยู่เว็บ มาวางในช่อง <strong>ข้อ 1.5 ด้านล่าง</strong> แล้วกด <strong>"ยืนยัน Code"</strong> เป็นอันเสร็จสมบูรณ์!
+                        </p>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
-                    <span className="text-slate-400 font-bold">📍 URI สำหรับประเภท Web App:</span>
+                    <span className="text-slate-400 font-bold">📍 คัดลอก Localhost URI สำหรับใส่ใน Google Console:</span>
                     <button
                       type="button"
                       onClick={() => {
-                        const redirectUrl = `http://34.87.121.61.nip.io:3000/api/auth/youtube/callback`;
+                        const redirectUrl = `http://localhost:3000/api/auth/youtube/callback`;
                         navigator.clipboard.writeText(redirectUrl);
                         alert('ก๊อปปี้ Redirect URI เรียบร้อยแล้ว:\n' + redirectUrl);
                       }}
-                      className="text-[10px] text-amber-400 hover:underline cursor-pointer bg-amber-950/60 px-2 py-0.5 rounded border border-amber-800/50"
+                      className="text-[10px] text-amber-400 hover:underline cursor-pointer bg-amber-950/60 px-2.5 py-1 rounded border border-amber-800/50"
                     >
-                      📋 คัดลอก URI (nip.io)
+                      📋 คัดลอก http://localhost:3000/...
                     </button>
                   </div>
                   <code className="block text-[10px] text-emerald-400 font-mono bg-slate-950 p-1.5 rounded border border-slate-800 break-all select-all">
-                    http://34.87.121.61.nip.io:3000/api/auth/youtube/callback
+                    http://localhost:3000/api/auth/youtube/callback
                   </code>
                 </div>
 

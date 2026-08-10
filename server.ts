@@ -20,28 +20,47 @@ let customGoogleClientId: string = process.env.GOOGLE_CLIENT_ID || process.env.Y
 let customGoogleClientSecret: string = process.env.GOOGLE_CLIENT_SECRET || process.env.YOUTUBE_CLIENT_SECRET || '';
 
 // Helper to get OAuth2 Client for YouTube Data API v3
-function getYouTubeOAuthClient(req?: express.Request | string) {
+function getYouTubeOAuthClient(req?: express.Request | string, customRedirectUri?: string) {
   const clientId = customGoogleClientId || process.env.GOOGLE_CLIENT_ID || process.env.YOUTUBE_CLIENT_ID || '';
   const clientSecret = customGoogleClientSecret || process.env.GOOGLE_CLIENT_SECRET || process.env.YOUTUBE_CLIENT_SECRET || '';
 
-  let host = 'localhost:3000';
-  let protocol = 'http';
+  let redirectUri = customRedirectUri || '';
 
-  if (typeof req === 'string') {
-    host = req;
-    protocol = (host.includes('localhost') || /^\d+\.\d+\.\d+\.\d+/.test(host)) ? 'http' : 'https';
-  } else if (req) {
-    host = req.headers.host || 'localhost:3000';
-    const forwardedProto = req.headers['x-forwarded-proto'] as string;
-    if (forwardedProto) {
-      protocol = forwardedProto.split(',')[0].trim();
-    } else {
-      protocol = (host.includes('localhost') || /^\d+\.\d+\.\d+\.\d+/.test(host)) ? 'http' : 'https';
+  if (!redirectUri) {
+    if (typeof req === 'object' && req && (req as express.Request).query && (req as express.Request).query.redirectUri) {
+      redirectUri = String((req as express.Request).query.redirectUri);
     }
   }
 
-  const baseUrl = process.env.APP_URL || `${protocol}://${host}`;
-  const redirectUri = `${baseUrl.replace(/\/$/, '')}/api/auth/youtube/callback`;
+  if (!redirectUri) {
+    if (process.env.APP_URL) {
+      redirectUri = `${process.env.APP_URL.replace(/\/$/, '')}/api/auth/youtube/callback`;
+    } else {
+      let host = 'localhost:3000';
+      let protocol = 'http';
+
+      if (typeof req === 'string') {
+        host = req;
+        protocol = host.startsWith('https') ? 'https' : 'http';
+      } else if (req) {
+        host = req.headers.host || 'localhost:3000';
+        const forwardedProto = req.headers['x-forwarded-proto'] as string;
+        if (forwardedProto) {
+          protocol = forwardedProto.split(',')[0].trim();
+        } else {
+          protocol = (req.secure || host.includes('run.app')) ? 'https' : 'http';
+        }
+      }
+
+      if (protocol === 'https') {
+        redirectUri = `https://${host}/api/auth/youtube/callback`;
+      } else {
+        // ALWAYS use http://localhost:3000/api/auth/youtube/callback for HTTP
+        // Google OAuth enforces localhost for HTTP Sensitive Scopes (youtube.upload)
+        redirectUri = `http://localhost:3000/api/auth/youtube/callback`;
+      }
+    }
+  }
 
   const oauth2Client = new google.auth.OAuth2(
     clientId,
