@@ -146,8 +146,8 @@ class SoundEngine {
     utterance.lang = 'th-TH';
 
     // Pitch adjustment: eerie low pitch for horror, higher funny pitch for comedy
-    utterance.pitch = isComedyTwist ? 1.3 : 0.85;
-    utterance.rate = isComedyTwist ? 1.15 : 0.95;
+    utterance.pitch = isComedyTwist ? 1.2 : 0.85;
+    utterance.rate = isComedyTwist ? 1.1 : 0.95;
 
     // Pick Thai voice if available
     const voices = window.speechSynthesis.getVoices();
@@ -156,13 +156,22 @@ class SoundEngine {
       utterance.voice = thaiVoice;
     }
 
-    utterance.onend = () => {
-      if (onEnd) onEnd();
+    let hasEnded = false;
+    const safeEnd = () => {
+      if (!hasEnded) {
+        hasEnded = true;
+        if (onEnd) onEnd();
+      }
     };
 
-    utterance.onerror = () => {
-      if (onEnd) onEnd();
-    };
+    utterance.onend = safeEnd;
+    utterance.onerror = safeEnd;
+
+    // Safety fallback timer in case browser SpeechSynthesis hangs
+    const estDurationMs = Math.max(3000, text.length * 110);
+    setTimeout(() => {
+      safeEnd();
+    }, estDurationMs);
 
     window.speechSynthesis.speak(utterance);
   }

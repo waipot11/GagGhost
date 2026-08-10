@@ -164,18 +164,10 @@ ${sponsor ? `🛍️ สินค้า Shopee ป้ายยาในคลิ
       return;
     }
 
-    if (!isMuted && currentScene) {
-      // Play sound effect
-      soundEngine.playSFX(currentScene.sfx);
+    let isSceneActive = true;
 
-      // Speak narration
-      const isComedy = currentScene.bgmMood === 'funny_twist' || currentSceneIdx === scenesToPlay.length - 1;
-      soundEngine.speakThai(currentScene.narrationText, isComedy);
-    }
-
-    // Advance to next scene after duration
-    const durationMs = (currentScene.durationSec || 8) * 1000;
-    timerRef.current = setTimeout(() => {
+    const advanceScene = () => {
+      if (!isSceneActive) return;
       if (currentSceneIdx < scenesToPlay.length - 1) {
         setCurrentSceneIdx(prev => prev + 1);
       } else {
@@ -184,9 +176,27 @@ ${sponsor ? `🛍️ สินค้า Shopee ป้ายยาในคลิ
           setShowTwistVoteModal(true);
         }
       }
-    }, durationMs);
+    };
+
+    if (!isMuted && currentScene) {
+      // Play sound effect
+      soundEngine.playSFX(currentScene.sfx);
+
+      // Speak narration and move to next scene when speech completes or timer expires
+      const isComedy = currentScene.bgmMood === 'funny_twist' || currentSceneIdx === scenesToPlay.length - 1;
+      soundEngine.speakThai(currentScene.narrationText, isComedy, () => {
+        // Delay slightly after speech ends before advancing
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(advanceScene, 800);
+      });
+    }
+
+    // Safety fallback timer if voiceover is muted or takes too long
+    const durationMs = (currentScene?.durationSec || 7) * 1000;
+    timerRef.current = setTimeout(advanceScene, durationMs);
 
     return () => {
+      isSceneActive = false;
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, [currentSceneIdx, isPlaying, isMuted, story.id]);
@@ -342,37 +352,22 @@ ${sponsor ? `🛍️ สินค้า Shopee ป้ายยาในคลิ
             </p>
           </div>
 
-          {/* Karaoke Thai Animated Subtitles (Bottom Center) */}
-          <div className="absolute bottom-24 left-3 right-16 z-20 text-center pointer-events-none">
-            <div className="inline-block bg-slate-950/85 border border-emerald-500/40 px-3.5 py-2 rounded-2xl shadow-xl backdrop-blur-md">
-              <p className="text-sm sm:text-base font-extrabold text-white leading-snug tracking-wide bg-gradient-to-r from-emerald-300 via-amber-200 to-emerald-400 bg-clip-text text-transparent">
-                "{currentScene?.narrationText || ''}"
-              </p>
-              {currentScene?.subtitles && currentScene.subtitles.length > 0 && (
-                <div className="flex flex-wrap justify-center gap-1 mt-1">
-                  {currentScene.subtitles.map((sub, i) => (
-                    <span
-                      key={i}
-                      className="text-[11px] font-bold text-amber-300 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-800/40"
-                    >
-                      {sub}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+          {/* Subtitle narration text removed per requirement */}
 
           {/* Sponsor Product Affiliate Overlay (Shopee / Custom) */}
           {story.sponsorProduct && (
             <div className="absolute bottom-2 left-3 right-16 z-20">
               <a
-                href={story.sponsorProduct.linkUrl || '#'}
+                href={story.sponsorProduct.linkUrl || `https://shopee.co.th/search?keyword=${encodeURIComponent(story.sponsorProduct.name)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => {
-                  e.preventDefault();
-                  alert(`🛍️ เปิดลิงก์ Shopee Affiliate:\nสินค้า: ${story.sponsorProduct?.name}\nราคา: ฿${story.sponsorProduct?.price}\nโค้ดลด: ${story.sponsorProduct?.discountCode}\nShopee Affiliate Tag: ${story.sponsorProduct?.shopeeAffiliateId || 'shopee_aff_gagghost_th'}\n\n(ระบบจะเปิดแอป Shopee พร้อมใส่โค้ดส่วนลดและผูก Affiliate ID ของคุณทันที)`);
+                  e.stopPropagation();
+                  // Directly open Shopee link in new tab without breaking or hiding player
+                  const targetUrl = story.sponsorProduct?.linkUrl && story.sponsorProduct.linkUrl !== '#'
+                    ? story.sponsorProduct.linkUrl
+                    : `https://shopee.co.th/search?keyword=${encodeURIComponent(story.sponsorProduct?.name || 'สินค้า Shopee')}`;
+                  window.open(targetUrl, '_blank', 'noopener,noreferrer');
                 }}
                 className={`flex items-center gap-2 p-2 rounded-2xl text-left text-slate-100 shadow-xl group transition-all border ${
                   story.sponsorProduct.isShopeeProduct || story.sponsorProduct.linkUrl?.includes('shopee')
