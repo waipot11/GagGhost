@@ -991,28 +991,44 @@ export const AutoPipelineStudio: React.FC<Props> = ({
               </div>
 
               {/* Option 1.5: Paste Auth Code or URL */}
-              <form onSubmit={handleExchangeCodeSubmit} className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-2">
-                <div className="font-bold text-slate-200 flex items-center gap-2">
-                  <span className="w-5 h-5 rounded-full bg-cyan-500 text-slate-950 flex items-center justify-center text-[10px] font-black">1.5</span>
-                  ยืนยันด้วย Authorization Code หรือ URL จาก Google
+              <form onSubmit={handleExchangeCodeSubmit} className="bg-slate-950 p-4 rounded-2xl border border-cyan-500/30 space-y-2.5">
+                <div className="font-bold text-slate-200 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-cyan-500 text-slate-950 flex items-center justify-center text-[10px] font-black">1.5</span>
+                    ยืนยันด้วย URL ทั้งหมดจาก Google (แนะนำวิธีนี้)
+                  </div>
+                  <span className="text-[10px] text-cyan-400 font-normal">ป้องกัน Code ขาดหาย</span>
                 </div>
-                <p className="text-slate-400 text-[11px]">
-                  หากเปิดหน้าล็อกอิน Google แล้วได้รับ Code หรือโดน Redirect ไปหน้าที่มี <code className="text-amber-300">code=4/0A...</code> สามารถก๊อปปี้ Code หรือ URL ทั้งหมดมาวางที่นี่เพื่อยืนยันได้ทันที
-                </p>
-                <div className="flex gap-2">
+                
+                <div className="bg-slate-900/90 p-2.5 rounded-xl border border-slate-800 text-[11px] text-slate-300 space-y-1">
+                  <p className="text-amber-300 font-semibold">
+                    💡 วิธีแก้ปัญหา invalid_grant:
+                  </p>
+                  <p>
+                    ก๊อปปี้ <strong>URL ทั้งหมดในช่องที่อยู่เว็บ (Address Bar)</strong> ที่ขึ้นคำว่า <code className="text-emerald-300 font-mono">localhost refused to connect</code> เช่น:
+                  </p>
+                  <code className="block text-[9.5px] text-cyan-300 font-mono bg-slate-950 p-1.5 rounded border border-slate-800 break-all select-all">
+                    http://localhost:3000/api/auth/youtube/callback?iss=https://accounts.google.com&code=4/0A...
+                  </code>
+                  <p className="text-slate-400 text-[10.5px] pt-0.5">
+                    นำมาวางในช่องด้านล่างนี้ได้เลย ระบบจะสกัด Code ที่สมบูรณ์ออกมาให้อัตโนมัติครับ
+                  </p>
+                </div>
+
+                <div className="flex gap-2 pt-1">
                   <input
                     type="text"
-                    placeholder="วาง Code หรือ URL ที่มี code=..."
+                    placeholder="วาง URL ทั้งหมด หรือ Code ที่นี่..."
                     value={authCodeInput}
                     onChange={(e) => setAuthCodeInput(e.target.value)}
-                    className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-400"
+                    className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-400 font-mono text-[11px]"
                   />
                   <button
                     type="submit"
                     disabled={youtubeConnecting || !authCodeInput}
-                    className="bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs transition-all disabled:opacity-50 cursor-pointer shrink-0"
+                    className="bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs transition-all disabled:opacity-50 cursor-pointer shrink-0 shadow flex items-center gap-1"
                   >
-                    ยืนยัน Code
+                    {youtubeConnecting ? 'กำลังยืนยัน...' : 'ยืนยัน Code'}
                   </button>
                 </div>
               </form>

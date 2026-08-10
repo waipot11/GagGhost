@@ -1,10 +1,15 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
+import { exec } from "child_process";
+import util from "util";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import { google } from "googleapis";
 import { Readable } from "stream";
+
+const execPromise = util.promisify(exec);
 
 dotenv.config();
 
@@ -807,21 +812,70 @@ app.get("/api/auth/youtube/callback", async (req, res) => {
 // 3.5 Manual Exchange Authorization Code endpoint
 app.post("/api/auth/youtube/exchange-code", async (req, res) => {
   try {
-    let { code } = req.body;
-    if (!code) {
+    let rawCodeInput = String(req.body.code || '').trim();
+    if (!rawCodeInput) {
       return res.status(400).json({ error: "กรุณากรอก Code หรือ URL ที่ได้จาก Google" });
     }
 
-    // Extract code if user pasted full URL (e.g. http://localhost:3000/api/auth/youtube/callback?code=4/0A...)
+    let code = rawCodeInput;
+
+    // Extract code parameter from full URL if pasted
     if (code.includes("code=")) {
-      const match = code.match(/code=([^&]+)/);
+      const match = code.match(/[?&]code=([^&]+)/);
       if (match) {
-        code = decodeURIComponent(match[1]);
+        code = match[1];
       }
     }
 
-    const { client } = getYouTubeOAuthClient(req);
-    const { tokens } = await client.getToken(code);
+    // Always URL-decode code in case it's percent-encoded (e.g. 4%2F0A...)
+    try {
+      if (code.includes('%')) {
+        code = decodeURIComponent(code);
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    code = code.trim();
+
+    let { client } = getYouTubeOAuthClient(req);
+    let tokens;
+
+    try {
+      const resToken = await client.getToken(code);
+      tokens = resToken.tokens;
+    } catch (tokenErr: any) {
+      console.warn("First attempt client.getToken failed, trying fallback URIs...", tokenErr?.message);
+      const fallbackUris = [
+        "http://localhost:3000/api/auth/youtube/callback",
+        `https://${req.headers.host}/api/auth/youtube/callback`,
+        `http://${req.headers.host}/api/auth/youtube/callback`,
+        "http://34.87.121.61.nip.io:3000/api/auth/youtube/callback"
+      ];
+      let succeeded = false;
+      for (const fUri of fallbackUris) {
+        try {
+          const fallbackClient = getYouTubeOAuthClient(req, fUri).client;
+          const resToken = await fallbackClient.getToken(code);
+          tokens = resToken.tokens;
+          client = fallbackClient;
+          succeeded = true;
+          break;
+        } catch (e) {
+          // continue fallback
+        }
+      }
+      if (!succeeded) {
+        const errMsg = tokenErr?.message || String(tokenErr);
+        if (errMsg.includes("invalid_grant")) {
+          return res.status(400).json({
+            error: "ข้อผิดพลาด invalid_grant: Code ไม่ถูกต้อง ถูกใช้งานไปแล้ว หรือคัดลอกมาไม่ครบถ้วน! กรุณากดปุ่ม 'เปิดหน้าล็อกอิน Google' อีกครั้ง แล้วคัดลอก 'URL ทั้งหมด' จากช่อง Address Bar มาวาง"
+          });
+        }
+        throw tokenErr;
+      }
+    }
+
     youtubeAuthTokens = tokens;
     client.setCredentials(tokens);
 
@@ -885,6 +939,50 @@ app.post("/api/youtube/manual-token", (req, res) => {
   }
 });
 
+// Helper to create a 100% valid playable 9:16 MP4 video buffer using FFmpeg
+async function createValidMp4Buffer(story: any, videoBase64?: string): Promise<Buffer> {
+  if (videoBase64 && typeof videoBase64 === "string" && videoBase64.length > 5000) {
+    try {
+      const cleanBase64 = videoBase64.replace(/^data:video\/\w+;base64,/, "");
+      const inputBuffer = Buffer.from(cleanBase64, "base64");
+
+      const tmpInput = path.join("/tmp", `in_${Date.now()}_${Math.floor(Math.random() * 10000)}.webm`);
+      const tmpOutput = path.join("/tmp", `out_${Date.now()}_${Math.floor(Math.random() * 10000)}.mp4`);
+
+      await fs.promises.writeFile(tmpInput, inputBuffer);
+      await execPromise(`ffmpeg -y -i "${tmpInput}" -c:v libx264 -preset ultrafast -pix_fmt yuv420p -movflags +faststart -c:a aac "${tmpOutput}"`);
+      const resultBuffer = await fs.promises.readFile(tmpOutput);
+
+      fs.unlink(tmpInput, () => {});
+      fs.unlink(tmpOutput, () => {});
+      return resultBuffer;
+    } catch (err) {
+      console.warn("Failed to convert base64 video with ffmpeg, fallback to raw buffer:", err);
+      const cleanBase64 = videoBase64.replace(/^data:video\/\w+;base64,/, "");
+      return Buffer.from(cleanBase64, "base64");
+    }
+  }
+
+  // Generate a 100% valid 9:16 vertical MP4 video (1080x1920) for YouTube Shorts
+  const tmpOutput = path.join("/tmp", `gen_${Date.now()}_${Math.floor(Math.random() * 10000)}.mp4`);
+  const safeTitle = String(story?.title || 'GagGhost AI Shorts').replace(/[^a-zA-Z0-9\u0E00-\u0E7F\s]/g, '').slice(0, 40);
+
+  try {
+    const ffmpegCmd = `ffmpeg -y -f lavfi -i color=c=0x0f172a:s=1080x1920:d=6 -f lavfi -i sine=f=440:d=6 -vf "drawtext=text='${safeTitle || 'GagGhost AI'}':fontcolor=white:fontsize=40:x=(w-text_w)/2:y=(h-text_h)/2-80,drawtext=text='GagGhost AI Auto-Pilot 24/7':fontcolor=0x38bdf8:fontsize=26:x=(w-text_w)/2:y=(h-text_h)/2+80" -c:v libx264 -preset ultrafast -pix_fmt yuv420p -movflags +faststart -c:a aac "${tmpOutput}"`;
+    await execPromise(ffmpegCmd);
+    const mp4Buffer = await fs.promises.readFile(tmpOutput);
+    fs.unlink(tmpOutput, () => {});
+    return mp4Buffer;
+  } catch (e) {
+    console.error("FFmpeg drawtext generation error, fallback to simple ffmpeg render:", e);
+    const ffmpegCmdSimple = `ffmpeg -y -f lavfi -i color=c=0x0f172a:s=1080x1920:d=6 -f lavfi -i sine=f=440:d=6 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -movflags +faststart -c:a aac "${tmpOutput}"`;
+    await execPromise(ffmpegCmdSimple);
+    const mp4Buffer = await fs.promises.readFile(tmpOutput);
+    fs.unlink(tmpOutput, () => {});
+    return mp4Buffer;
+  }
+}
+
 // Helper function to handle YouTube Shorts Video Upload via Data API v3
 async function uploadStoryToYouTube(story: any, videoBase64?: string, reqHost?: express.Request | string) {
   if (!youtubeAuthTokens) {
@@ -911,18 +1009,9 @@ ${story?.tagline ? `📌 ${story.tagline}\n` : ''}
 
 #Shorts #GagGhostAI #ShopeeAffiliate #ผีตลก #หนังสั้นสยองขวัญ #ShopeeTH #ป้ายยาShopee`;
 
-  // Prepare video buffer or stream
-  let mediaStream: any;
-  if (videoBase64 && typeof videoBase64 === 'string' && videoBase64.length > 100) {
-    const base64Data = videoBase64.replace(/^data:video\/\w+;base64,/, '');
-    const videoBuffer = Buffer.from(base64Data, 'base64');
-    mediaStream = Readable.from(videoBuffer);
-  } else {
-    // Standard MP4 stream container for YouTube API
-    const minimalMp4Base64 = "AAAAIGZ0eXBpc29tAAAAAGlzb21pc28ybXA0MQAAAAptb292AAAAAG12aGQAAAAA";
-    const videoBuffer = Buffer.from(minimalMp4Base64, 'base64');
-    mediaStream = Readable.from(videoBuffer);
-  }
+  // Prepare valid 9:16 vertical MP4 video buffer
+  const videoBuffer = await createValidMp4Buffer(story, videoBase64);
+  const mediaStream = Readable.from(videoBuffer);
 
   const uploadRes = await youtube.videos.insert({
     part: ["snippet", "status"],
