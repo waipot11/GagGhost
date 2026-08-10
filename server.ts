@@ -968,16 +968,23 @@ async function getFallbackMp4Buffer(): Promise<Buffer> {
   }
 }
 
-// Helper to create a 100% valid playable 9:16 MP4 video buffer using FFmpeg
-async function createValidMp4Buffer(story: any, videoBase64?: string): Promise<Buffer> {
+// Helper to create a 100% valid playable 9:16 MP4 video file on disk for YouTube Shorts
+async function createValidMp4File(story: any, videoBase64?: string): Promise<{ filePath: string; cleanup: () => void }> {
+  const tmpOutput = path.join("/tmp", `yt_shorts_${Date.now()}_${Math.floor(Math.random() * 10000)}.mp4`);
+  const cleanup = () => {
+    try {
+      if (fs.existsSync(tmpOutput)) {
+        fs.unlinkSync(tmpOutput);
+      }
+    } catch (e) {}
+  };
+
   if (videoBase64 && typeof videoBase64 === "string" && videoBase64.length > 5000) {
     try {
       const cleanBase64 = videoBase64.replace(/^data:video\/\w+;base64,/, "");
       const inputBuffer = Buffer.from(cleanBase64, "base64");
 
       const tmpInput = path.join("/tmp", `in_${Date.now()}_${Math.floor(Math.random() * 10000)}.webm`);
-      const tmpOutput = path.join("/tmp", `out_${Date.now()}_${Math.floor(Math.random() * 10000)}.mp4`);
-
       await fs.promises.writeFile(tmpInput, inputBuffer);
 
       // Check if input video contains an audio stream via ffprobe
@@ -991,36 +998,38 @@ async function createValidMp4Buffer(story: any, videoBase64?: string): Promise<B
 
       let convertCmd = '';
       if (hasAudio) {
-        convertCmd = `/usr/bin/ffmpeg -y -loglevel error -i "${tmpInput}" -c:v libx264 -preset ultrafast -pix_fmt yuv420p -movflags +faststart -c:a aac -b:a 128k "${tmpOutput}"`;
+        convertCmd = `/usr/bin/ffmpeg -y -loglevel error -i "${tmpInput}" -c:v libx264 -preset ultrafast -pix_fmt yuv420p -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 "${tmpOutput}"`;
       } else {
         // Add silent audio track so YouTube processes audio/video correctly
-        convertCmd = `/usr/bin/ffmpeg -y -loglevel error -i "${tmpInput}" -f lavfi -i anullsrc=r=44100:cl=stereo -c:v libx264 -preset ultrafast -pix_fmt yuv420p -movflags +faststart -c:a aac -b:a 128k -shortest "${tmpOutput}"`;
+        convertCmd = `/usr/bin/ffmpeg -y -loglevel error -i "${tmpInput}" -f lavfi -i anullsrc=r=44100:cl=stereo -c:v libx264 -preset ultrafast -pix_fmt yuv420p -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 -shortest "${tmpOutput}"`;
       }
 
       await execPromise(convertCmd, { maxBuffer: 20 * 1024 * 1024 });
-      const resultBuffer = await fs.promises.readFile(tmpOutput);
+      try { fs.unlinkSync(tmpInput); } catch (e) {}
 
-      fs.unlink(tmpInput, () => {});
-      fs.unlink(tmpOutput, () => {});
-      return resultBuffer;
+      if (fs.existsSync(tmpOutput) && fs.statSync(tmpOutput).size > 1000) {
+        return { filePath: tmpOutput, cleanup };
+      }
     } catch (err) {
       console.warn("Failed to convert base64 video with ffmpeg, generating synthetic 9:16 MP4 fallback:", err);
     }
   }
 
-  // Generate a 100% valid 9:16 vertical MP4 video (1080x1920) for YouTube Shorts
-  const tmpOutput = path.join("/tmp", `gen_${Date.now()}_${Math.floor(Math.random() * 10000)}.mp4`);
-
+  // Generate a 100% valid 9:16 vertical MP4 video (1080x1920, 15 seconds) for YouTube Shorts
   try {
-    const ffmpegCmd = `/usr/bin/ffmpeg -y -loglevel error -f lavfi -i color=c=0x0f172a:s=1080x1920:r=30:d=6 -f lavfi -i anullsrc=r=44100:cl=stereo:d=6 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -g 30 -movflags +faststart -c:a aac -b:a 128k "${tmpOutput}"`;
+    const ffmpegCmd = `/usr/bin/ffmpeg -y -loglevel error -f lavfi -i color=c=0x0f172a:s=1080x1920:r=30:d=15 -f lavfi -i anullsrc=r=44100:cl=stereo:d=15 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -g 30 -movflags +faststart -c:a aac -b:a 128k -ar 44100 -ac 2 "${tmpOutput}"`;
     await execPromise(ffmpegCmd, { maxBuffer: 20 * 1024 * 1024 });
-    const mp4Buffer = await fs.promises.readFile(tmpOutput);
-    fs.unlink(tmpOutput, () => {});
-    return mp4Buffer;
+    if (fs.existsSync(tmpOutput) && fs.statSync(tmpOutput).size > 1000) {
+      return { filePath: tmpOutput, cleanup };
+    }
   } catch (e) {
-    console.warn("FFmpeg mp4 generation warning, using getFallbackMp4Buffer():", e);
-    return await getFallbackMp4Buffer();
+    console.warn("FFmpeg mp4 generation warning:", e);
   }
+
+  // Fallback to pre-generated sync boot MP4 buffer
+  const fallbackBuf = await getFallbackMp4Buffer();
+  await fs.promises.writeFile(tmpOutput, fallbackBuf);
+  return { filePath: tmpOutput, cleanup };
 }
 
 // Helper function to handle YouTube Shorts Video Upload via Data API v3
@@ -1049,51 +1058,56 @@ ${story?.tagline ? `📌 ${story.tagline}\n` : ''}
 
 #Shorts #GagGhostAI #ShopeeAffiliate #ผีตลก #หนังสั้นสยองขวัญ #ShopeeTH #ป้ายยาShopee`;
 
-  // Prepare valid 9:16 vertical MP4 video buffer
-  const videoBuffer = await createValidMp4Buffer(story, videoBase64);
-  const mediaStream = Readable.from(videoBuffer);
+  // Prepare valid 9:16 vertical MP4 video file stream with disk size for exact Content-Length
+  const { filePath, cleanup } = await createValidMp4File(story, videoBase64);
 
-  const uploadRes = await youtube.videos.insert({
-    part: ["snippet", "status"],
-    requestBody: {
-      snippet: {
-        title: title.slice(0, 100),
-        description: description,
-        tags: ["Shorts", "GagGhostAI", "ShopeeAffiliate", "ผีตลก", "หนังสั้นสยองขวัญ", "ShopeeTH"],
-        categoryId: "23" // Comedy
+  try {
+    const fileStream = fs.createReadStream(filePath);
+
+    const uploadRes = await youtube.videos.insert({
+      part: ["snippet", "status"],
+      requestBody: {
+        snippet: {
+          title: title.slice(0, 100),
+          description: description,
+          tags: ["Shorts", "GagGhostAI", "ShopeeAffiliate", "ผีตลก", "หนังสั้นสยองขวัญ", "ShopeeTH"],
+          categoryId: "23" // Comedy
+        },
+        status: {
+          privacyStatus: "public", // 'public', 'unlisted', or 'private'
+          selfDeclaredMadeForKids: false
+        }
       },
-      status: {
-        privacyStatus: "public", // 'public', 'unlisted', or 'private'
-        selfDeclaredMadeForKids: false
+      media: {
+        mimeType: "video/mp4",
+        body: fileStream
       }
-    },
-    media: {
-      mimeType: "video/mp4",
-      body: mediaStream
+    });
+
+    const videoId = uploadRes.data.id;
+    if (!videoId) {
+      throw new Error("YouTube API ไม่ได้คืนค่า Video ID (อาจติด Quota หรือสิทธิ์การอัปโหลด)");
     }
-  });
 
-  const videoId = uploadRes.data.id;
-  if (!videoId) {
-    throw new Error("YouTube API ไม่ได้คืนค่า Video ID (อาจติด Quota หรือสิทธิ์การอัปโหลด)");
-  }
+    const videoUrl = `https://www.youtube.com/shorts/${videoId}`;
 
-  const videoUrl = `https://www.youtube.com/shorts/${videoId}`;
-
-  if (story?.id) {
-    const match = publishedStories.find(s => s.id === story.id);
-    if (match) {
-      match.youtubeVideoId = videoId;
-      match.youtubeUrl = videoUrl;
-      match.youtubeUploadedAt = new Date().toISOString();
+    if (story?.id) {
+      const match = publishedStories.find(s => s.id === story.id);
+      if (match) {
+        match.youtubeVideoId = videoId;
+        match.youtubeUrl = videoUrl;
+        match.youtubeUploadedAt = new Date().toISOString();
+      }
     }
-  }
 
-  return {
-    videoId,
-    videoUrl,
-    channelTitle: youtubeChannelInfo?.title || 'YouTube Channel'
-  };
+    return {
+      videoId,
+      videoUrl,
+      channelTitle: youtubeChannelInfo?.title || 'YouTube Channel'
+    };
+  } finally {
+    cleanup();
+  }
 }
 
 // 5. POST Upload Video directly to YouTube Shorts via YouTube Data API v3
