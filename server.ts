@@ -945,7 +945,7 @@ let FALLBACK_MP4_BUFFER: Buffer | null = null;
 async function initFallbackMp4() {
   try {
     const tmpOutput = path.join("/tmp", "static_fallback_916.mp4");
-    await execPromise(`/usr/bin/ffmpeg -y -loglevel error -f lavfi -i color=c=0x0f172a:s=1080x1920:r=30:d=5 -f lavfi -i sine=f=440:r=44100:d=5 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -g 30 -movflags +faststart -c:a aac -b:a 128k -shortest "${tmpOutput}"`, { maxBuffer: 20 * 1024 * 1024 });
+    await execPromise(`/usr/bin/ffmpeg -y -loglevel error -f lavfi -i color=c=0x0f172a:s=1080x1920:r=30:d=6 -f lavfi -i anullsrc=r=44100:cl=stereo:d=6 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -g 30 -movflags +faststart -c:a aac -b:a 128k "${tmpOutput}"`, { maxBuffer: 20 * 1024 * 1024 });
     FALLBACK_MP4_BUFFER = await fs.promises.readFile(tmpOutput);
     console.log("Fallback 9:16 MP4 buffer initialized successfully, size:", FALLBACK_MP4_BUFFER.length);
   } catch (e) {
@@ -980,7 +980,7 @@ async function createValidMp4Buffer(story: any, videoBase64?: string): Promise<B
         convertCmd = `/usr/bin/ffmpeg -y -loglevel error -i "${tmpInput}" -c:v libx264 -preset ultrafast -pix_fmt yuv420p -movflags +faststart -c:a aac -b:a 128k "${tmpOutput}"`;
       } else {
         // Add silent audio track so YouTube processes audio/video correctly
-        convertCmd = `/usr/bin/ffmpeg -y -loglevel error -i "${tmpInput}" -f lavfi -i anullsrc=r=44100:cl=mono -c:v libx264 -preset ultrafast -pix_fmt yuv420p -movflags +faststart -c:a aac -b:a 128k -shortest "${tmpOutput}"`;
+        convertCmd = `/usr/bin/ffmpeg -y -loglevel error -i "${tmpInput}" -f lavfi -i anullsrc=r=44100:cl=stereo -c:v libx264 -preset ultrafast -pix_fmt yuv420p -movflags +faststart -c:a aac -b:a 128k -shortest "${tmpOutput}"`;
       }
 
       await execPromise(convertCmd, { maxBuffer: 20 * 1024 * 1024 });
@@ -998,13 +998,13 @@ async function createValidMp4Buffer(story: any, videoBase64?: string): Promise<B
   const tmpOutput = path.join("/tmp", `gen_${Date.now()}_${Math.floor(Math.random() * 10000)}.mp4`);
 
   try {
-    const ffmpegCmd = `/usr/bin/ffmpeg -y -loglevel error -f lavfi -i color=c=0x0f172a:s=1080x1920:r=30:d=6 -f lavfi -i sine=f=440:r=44100:d=6 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -g 30 -movflags +faststart -c:a aac -b:a 128k -shortest "${tmpOutput}"`;
+    const ffmpegCmd = `/usr/bin/ffmpeg -y -loglevel error -f lavfi -i color=c=0x0f172a:s=1080x1920:r=30:d=6 -f lavfi -i anullsrc=r=44100:cl=stereo:d=6 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -g 30 -movflags +faststart -c:a aac -b:a 128k "${tmpOutput}"`;
     await execPromise(ffmpegCmd, { maxBuffer: 20 * 1024 * 1024 });
     const mp4Buffer = await fs.promises.readFile(tmpOutput);
     fs.unlink(tmpOutput, () => {});
     return mp4Buffer;
   } catch (e) {
-    console.error("FFmpeg mp4 generation error, using FALLBACK_MP4_BUFFER:", e);
+    console.warn("FFmpeg mp4 generation warning, using FALLBACK_MP4_BUFFER:", e);
     if (FALLBACK_MP4_BUFFER) {
       return FALLBACK_MP4_BUFFER;
     }
