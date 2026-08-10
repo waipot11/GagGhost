@@ -1059,7 +1059,7 @@ async function createValidMp4File(story: any, videoBase64?: string): Promise<{ f
   return { filePath: tmpOutput, cleanup };
 }
 
-// Helper function to handle YouTube Shorts Video Upload via Data API v3
+// Helper function to handle YouTube Shorts Video Upload via Data API v3 (Resumable Upload Protocol)
 async function uploadStoryToYouTube(story: any, videoBase64?: string, reqHost?: express.Request | string) {
   if (!youtubeAuthTokens) {
     throw new Error("ยังไม่ได้เชื่อมต่อบัญชี YouTube OAuth (กรุณาเชื่อมต่อช่อง YouTube ก่อน)");
@@ -1068,7 +1068,13 @@ async function uploadStoryToYouTube(story: any, videoBase64?: string, reqHost?: 
   const { client } = getYouTubeOAuthClient(reqHost);
   client.setCredentials(youtubeAuthTokens);
 
-  const youtube = google.youtube({ version: "v3", auth: client });
+  // Obtain refreshed Access Token
+  const tokenRes = await client.getAccessToken();
+  const accessToken = tokenRes.token || youtubeAuthTokens.access_token;
+
+  if (!accessToken) {
+    throw new Error("ไม่สามารถรับ Access Token สำหรับ YouTube API ได้ (กรุณาเชื่อมต่อ OAuth ใหม่)");
+  }
 
   const title = `👻 [หนังสั้นสยองขวัญ] ${story?.title || 'ผีตลกหักมุม'} #Shorts`;
   const sponsor = story?.sponsorProduct || {
@@ -1085,17 +1091,24 @@ ${story?.tagline ? `📌 ${story.tagline}\n` : ''}
 
 #Shorts #GagGhostAI #ShopeeAffiliate #ผีตลก #หนังสั้นสยองขวัญ #ShopeeTH #ป้ายยาShopee`;
 
-  // Prepare valid 9:16 vertical MP4 video file stream with disk size for exact Content-Length
+  // Prepare valid 9:16 vertical MP4 video file
   const { filePath, cleanup } = await createValidMp4File(story, videoBase64);
 
   try {
-    const fileStat = fs.statSync(filePath);
-    console.log(`[YouTube Upload] Starting upload for "${title}", file size: ${fileStat.size} bytes`);
-    const fileStream = fs.createReadStream(filePath);
+    const videoBuffer = fs.readFileSync(filePath);
+    const fileSize = videoBuffer.length;
+    console.log(`[YouTube Resumable Upload] Preparing upload for "${title}", file size: ${fileSize} bytes`);
 
-    const uploadRes = await youtube.videos.insert({
-      part: ["snippet", "status"],
-      requestBody: {
+    // Step 1: Initiate Resumable Upload Session
+    const initRes = await fetch("https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "Content-Type": "application/json; charset=UTF-8",
+        "X-Upload-Content-Length": fileSize.toString(),
+        "X-Upload-Content-Type": "video/mp4"
+      },
+      body: JSON.stringify({
         snippet: {
           title: title.slice(0, 100),
           description: description,
@@ -1103,22 +1116,51 @@ ${story?.tagline ? `📌 ${story.tagline}\n` : ''}
           categoryId: "23" // Comedy
         },
         status: {
-          privacyStatus: "public", // 'public', 'unlisted', or 'private'
+          privacyStatus: "public",
           selfDeclaredMadeForKids: false
         }
-      },
-      media: {
-        mimeType: "video/mp4",
-        body: fileStream
-      }
+      })
     });
 
-    const videoId = uploadRes.data.id;
+    if (!initRes.ok) {
+      const errText = await initRes.text();
+      console.error("[YouTube Upload Init Error]", initRes.status, errText);
+      throw new Error(`YouTube Upload Init Failed (${initRes.status}): ${errText}`);
+    }
+
+    const uploadUrl = initRes.headers.get("location");
+    if (!uploadUrl) {
+      throw new Error("YouTube Upload response missing Resumable Location header");
+    }
+
+    console.log(`[YouTube Resumable Upload] Session created successfully, transferring ${fileSize} bytes...`);
+
+    // Step 2: Upload raw MP4 binary buffer directly via PUT with exact Content-Length
+    const uploadRes = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "Content-Type": "video/mp4",
+        "Content-Length": fileSize.toString()
+      },
+      body: videoBuffer
+    });
+
+    if (!uploadRes.ok) {
+      const errText = await uploadRes.text();
+      console.error("[YouTube Upload Binary PUT Error]", uploadRes.status, errText);
+      throw new Error(`YouTube Video Upload PUT Failed (${uploadRes.status}): ${errText}`);
+    }
+
+    const uploadData = await uploadRes.json();
+    const videoId = uploadData.id;
+
     if (!videoId) {
       throw new Error("YouTube API ไม่ได้คืนค่า Video ID (อาจติด Quota หรือสิทธิ์การอัปโหลด)");
     }
 
     const videoUrl = `https://www.youtube.com/shorts/${videoId}`;
+    console.log(`🎉 [YouTube Upload Success] Video ID: ${videoId}, URL: ${videoUrl}`);
 
     if (story?.id) {
       const match = publishedStories.find(s => s.id === story.id);
