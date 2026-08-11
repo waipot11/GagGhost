@@ -1312,9 +1312,8 @@ async function uploadStoryToFacebookReels(story: any, videoBase64?: string) {
       formData.append('source', blob, 'video.mp4');
       formData.append('title', title);
       formData.append('description', description);
-      formData.append('access_token', activePageToken);
 
-      const directRes = await fetch(`https://graph-video.facebook.com/v19.0/${pageId}/videos`, {
+      const directRes = await fetch(`https://graph-video.facebook.com/v19.0/${pageId}/videos?access_token=${encodeURIComponent(activePageToken)}`, {
         method: 'POST',
         body: formData
       });
@@ -1336,10 +1335,10 @@ async function uploadStoryToFacebookReels(story: any, videoBase64?: string) {
         return { videoId: fbVideoId, videoUrl: fbUrl, pageName: finalPageName };
       } else {
         const fbErrObj = directData.error || {};
-        console.warn("[Facebook graph-video.facebook.com Error]:", fbErrObj.message);
+        console.warn("[Facebook graph-video.facebook.com Error]:", JSON.stringify(fbErrObj));
 
         // Backup call to graph.facebook.com
-        const directRes2 = await fetch(`https://graph.facebook.com/v19.0/${pageId}/videos`, {
+        const directRes2 = await fetch(`https://graph.facebook.com/v19.0/${pageId}/videos?access_token=${encodeURIComponent(activePageToken)}`, {
           method: 'POST',
           body: formData
         });
@@ -1352,11 +1351,14 @@ async function uploadStoryToFacebookReels(story: any, videoBase64?: string) {
           return { videoId: fbVideoId, videoUrl: fbUrl, pageName: finalPageName };
         }
 
-        const errMsg = directData2.error?.message || fbErrObj.message || "ไม่สามารถอัปโหลดเข้า Facebook Page ได้";
-        if (errMsg.includes("No permission") || fbErrObj.code === 100 || directData2.error?.code === 100) {
-          throw new Error(`(#100) Token ขาดสิทธิ์ 'pages_manage_posts' หรือไม่ได้เปิดสิทธิ์ให้เพจ "${finalPageName}" (จากรูป Debugger ของคุณ สิทธิ์ pages_manage_posts ยังไม่ได้เพิ่มไว้ ให้กด Add Permission -> เพิ่ม pages_manage_posts แล้วกด Generate Token ใหม่)`);
+        const fbErr = directData2.error || directData.error || {};
+        const exactMsg = fbErr.message || "ไม่สามารถอัปโหลดวิดีโอเข้า Facebook Page ได้";
+        console.error("[Facebook Video Upload Failed]:", JSON.stringify(fbErr));
+
+        if (fbErr.code === 100 || exactMsg.toLowerCase().includes("no permission")) {
+          throw new Error(`(#100) ${exactMsg} (กรุณาสลับช่อง 'User or Page' ใน Graph API Explorer เป็นเพจ "${finalPageName}" แล้วกด Generate Access Token ใหม่เพื่อขอ Token ของเพจโดยตรง)`);
         }
-        throw new Error(errMsg);
+        throw new Error(exactMsg);
       }
     } catch (directErr: any) {
       throw directErr;

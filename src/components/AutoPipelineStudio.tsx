@@ -1230,20 +1230,24 @@ export const AutoPipelineStudio: React.FC<Props> = ({
                 </p>
               </div>
             ) : (
-              <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 text-xs text-slate-300 mb-5 space-y-2">
-                <p className="font-bold text-blue-400">💡 วิธีสร้าง Page Access Token ที่มีสิทธิ์ลง Reels (แก้ปัญหาสิทธิ์ #100):</p>
-                <ol className="list-decimal pl-4 space-y-1 text-[11px] text-slate-300">
-                  <li>ไปที่ <strong>Meta Graph API Explorer</strong> (<a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noreferrer" className="text-cyan-400 underline">developers.facebook.com/tools/explorer</a>)</li>
-                  <li>ตรงช่อง <strong>User or Page (ผู้ใช้หรือเพจ)</strong> เลือกเพจของคุณ (เช่น <strong>Noinashop2024</strong>)</li>
-                  <li>ในส่วน <strong>Permissions (สิทธิ์)</strong> ตรวจสอบให้มี 3 สิทธิ์หลักนี้ (หากไม่มีให้กด Add a Permission แล้วเลือกเพิ่ม):
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      <span className="bg-emerald-950 text-emerald-300 border border-emerald-700 px-1.5 py-0.5 rounded font-mono text-[10px]">publish_video</span>
-                      <span className="bg-emerald-950 text-emerald-300 border border-emerald-700 px-1.5 py-0.5 rounded font-mono text-[10px]">pages_show_list</span>
-                      <span className="bg-emerald-950 text-emerald-300 border border-emerald-700 px-1.5 py-0.5 rounded font-mono text-[10px]">pages_read_engagement</span>
-                    </div>
+              <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 text-xs text-slate-300 mb-5 space-y-2.5">
+                <p className="font-bold text-blue-400 text-sm">💡 วิธีการแก้ปัญหาสิทธิ์ (#100) ไม่ต้องเพิ่ม pages_manage_posts:</p>
+                <div className="p-2.5 bg-amber-950/40 border border-amber-500/40 rounded-xl text-[11px] text-amber-200">
+                  📌 <strong>สาเหตุ:</strong> Meta ไม่ให้เพิ่มสิทธิ์ <code className="bg-slate-900 px-1 py-0.5 rounded text-amber-300">pages_manage_posts</code> แล้ว เพราะปัจจุบัน Meta ใช้สิทธิ์ <code className="bg-slate-900 px-1 py-0.5 rounded text-emerald-300">publish_video</code> ร่วมกับ <strong>Page Token</strong> แทนครับ
+                </div>
+                <p className="font-semibold text-slate-200 text-[12px]">ขั้นตอนการรับ Token เพจที่ถูกต้อง (ทำตาม 4 สเต็ปนี้ใน Graph API Explorer):</p>
+                <ol className="list-decimal pl-4 space-y-2 text-[11px] text-slate-300">
+                  <li>ไปที่ <strong>Graph API Explorer</strong> (<a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noreferrer" className="text-cyan-400 underline">developers.facebook.com/tools/explorer</a>)</li>
+                  <li>
+                    ตรงช่อง <strong>ผู้ใช้หรือเพจ (User or Page)</strong> (ปัจจุบันขึ้นว่า "โทเค็นการเข้าถึงของผู้ใช้"):
+                    <br />👉 <strong className="text-amber-300">คลิกเปลี่ยนเป็นชื่อเพจของคุณ เช่น "Noinashop2024"</strong>
                   </li>
-                  <li>กดปุ่ม <strong>Generate Access Token</strong> สีฟ้า เพื่อเจน Token ใหม่สำหรับเพจ</li>
-                  <li>คัดลอก Token และ Page ID มาวางในช่องด้านล่าง แล้วกดบันทึก</li>
+                  <li>
+                    ในช่องสิทธิ์ สังเกตว่าจะมี <code className="text-emerald-300 bg-slate-900 px-1">publish_video</code> และ <code className="text-emerald-300 bg-slate-900 px-1">pages_show_list</code> ครบอยู่แล้ว
+                  </li>
+                  <li>
+                    กดปุ่มสีฟ้า <strong className="text-cyan-300">Generate Access Token</strong> ยินยอมป๊อปอัพ จากนั้นคัดลอก Token มาวางใส่ในแอปนี้ได้เลยครับ!
+                  </li>
                 </ol>
               </div>
             )}
