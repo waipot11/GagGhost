@@ -1284,14 +1284,41 @@ async function uploadStoryToFacebookReels(story: any, videoBase64?: string) {
         // Pause to allow Meta backend processing
         await new Promise(r => setTimeout(r, 2500));
 
-        // Finish / Publish Reel
-        const finishUrl = `https://graph.facebook.com/v19.0/${pageId}/video_reels?upload_phase=finish&video_id=${videoId}&video_state=PUBLISHED&description=${encodeURIComponent(description)}&title=${encodeURIComponent(title)}&access_token=${encodeURIComponent(activePageToken)}`;
-        const finishRes = await fetch(finishUrl, { method: "POST" });
+        // Finish / Publish Reel with proper JSON POST payload
+        const finishRes = await fetch(`https://graph.facebook.com/v19.0/${pageId}/video_reels?upload_phase=finish&access_token=${encodeURIComponent(activePageToken)}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            upload_phase: "finish",
+            video_id: videoId,
+            video_state: "PUBLISHED",
+            description: description,
+            title: title,
+            access_token: activePageToken
+          })
+        });
         const finishData: any = await finishRes.json();
+        console.log(`[Facebook Reels Finish Response]:`, JSON.stringify(finishData));
 
         if (finishData.success || finishData.id) {
           const reelUrl = `https://www.facebook.com/reel/${videoId}`;
-          console.log(`🎉 [Facebook Reels Success] Video ID: ${videoId}, URL: ${reelUrl}`);
+          
+          // Poll video status to check if processing or published
+          let isReady = false;
+          try {
+            const statusRes = await fetch(`https://graph.facebook.com/v19.0/${videoId}?fields=status,published,permalink_url&access_token=${encodeURIComponent(activePageToken)}`);
+            const statusData: any = await statusRes.json();
+            console.log(`[Facebook Reel Meta Status]:`, JSON.stringify(statusData));
+            if (statusData.status?.video_status === 'ready') {
+              isReady = true;
+            }
+          } catch (stErr: any) {
+            console.warn("Could not check reel status:", stErr.message);
+          }
+
+          console.log(`🎉 [Facebook Reels Success] Video ID: ${videoId}, URL: ${reelUrl} (Processing status checked)`);
 
           if (story?.id) {
             const match = publishedStories.find(s => s.id === story.id);
@@ -1330,7 +1357,7 @@ async function uploadStoryToFacebookReels(story: any, videoBase64?: string) {
         await fetch(transferUrl, { method: "POST", body: formData });
         await new Promise(r => setTimeout(r, 1500));
 
-        const finishUrl = `https://graph-video.facebook.com/v19.0/${pageId}/videos?upload_phase=finish&upload_session_id=${sessionId}&title=${encodeURIComponent(title)}&description=${encodeURIComponent(description)}&access_token=${encodeURIComponent(activePageToken)}`;
+        const finishUrl = `https://graph-video.facebook.com/v19.0/${pageId}/videos?upload_phase=finish&upload_session_id=${sessionId}&title=${encodeURIComponent(title)}&description=${encodeURIComponent(description)}&published=true&access_token=${encodeURIComponent(activePageToken)}`;
         const finishRes = await fetch(finishUrl, { method: "POST" });
         const finishData: any = await finishRes.json();
 
@@ -1361,6 +1388,7 @@ async function uploadStoryToFacebookReels(story: any, videoBase64?: string) {
       formData.append('source', videoFile);
       formData.append('title', title);
       formData.append('description', description);
+      formData.append('published', 'true');
 
       const directRes = await fetch(`https://graph-video.facebook.com/v19.0/${pageId}/videos?access_token=${encodeURIComponent(activePageToken)}`, {
         method: 'POST',
