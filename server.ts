@@ -1182,6 +1182,261 @@ ${story?.tagline ? `📌 ${story.tagline}\n` : ''}
   }
 }
 
+// ==========================================
+// FACEBOOK REELS GRAPH API UPLOAD HELPER
+// ==========================================
+let facebookPageConfig: { pageAccessToken: string; pageId: string; pageName?: string } | null = null;
+
+async function uploadStoryToFacebookReels(story: any, videoBase64?: string) {
+  if (!facebookPageConfig || !facebookPageConfig.pageAccessToken || !facebookPageConfig.pageId) {
+    throw new Error("ยังไม่ได้เชื่อมต่อ Facebook Page Access Token หรือ Page ID (กรุณาตั้งค่าช่อง Facebook ก่อน)");
+  }
+
+  const { pageAccessToken, pageId, pageName } = facebookPageConfig;
+  const title = `👻 [หนังสั้นสยองขวัญ] ${story?.title || 'ผีตลกหักมุม'} #Reels`;
+  const sponsor = story?.sponsorProduct || {
+    name: 'ขาตั้งกล้องเซลฟี่บลูทูธ 2 เมตร',
+    shopeeUrl: 'https://shope.ee/m/affiliate?id=shopee_aff_gagghost_th&product=tripod',
+    discountCode: 'SHOPEETIPOD',
+    commissionRate: '15%'
+  };
+
+  const description = `👻 ${story?.title || 'หนังสั้นสยองขวัญฮาแตก'}
+
+📌 ผลิตโดย GagGhost AI Auto-Pilot Engine 24/7
+
+🛒 สินค้าป้ายยาในคลิป: ${sponsor.name}
+👉 สั่งซื้อตรงนี้เลย: ${sponsor.shopeeUrl}
+🎁 โค้ดส่วนลดพิเศษ: ${sponsor.discountCode}
+
+#Reels #FacebookReels #GagGhostAI #ShopeeAffiliate #ผีตลก #หนังสั้นสยองขวัญ #ShopeeTH #ป้ายยาShopee`;
+
+  // Prepare valid 9:16 vertical MP4 video file
+  const { filePath, cleanup } = await createValidMp4File(story, videoBase64);
+
+  try {
+    const videoBuffer = fs.readFileSync(filePath);
+    const fileSize = videoBuffer.length;
+    console.log(`[Facebook Reels Upload] Preparing upload for Page ID ${pageId}, file size: ${fileSize} bytes`);
+
+    // Method 1: Facebook Video Reels API (v19.0)
+    try {
+      const startUrl = `https://graph.facebook.com/v19.0/${pageId}/video_reels?upload_phase=start&access_token=${encodeURIComponent(pageAccessToken)}`;
+      const startRes = await fetch(startUrl, { method: "POST" });
+      const startData: any = await startRes.json();
+
+      if (startData.video_id && startData.upload_url) {
+        const { video_id: videoId, upload_url: uploadUrl } = startData;
+        console.log(`[Facebook Reels] Session created. Video ID: ${videoId}, uploading ${fileSize} bytes...`);
+
+        // Transfer binary video buffer
+        await fetch(uploadUrl, {
+          method: "POST",
+          headers: {
+            "Authorization": `OAuth ${pageAccessToken}`,
+            "file_offset": "0",
+            "Content-Type": "application/octet-stream"
+          },
+          body: videoBuffer
+        });
+
+        // Finish / Publish Reel
+        const finishUrl = `https://graph.facebook.com/v19.0/${pageId}/video_reels?upload_phase=finish&video_id=${videoId}&video_state=PUBLISHED&description=${encodeURIComponent(description)}&access_token=${encodeURIComponent(pageAccessToken)}`;
+        const finishRes = await fetch(finishUrl, { method: "POST" });
+        const finishData: any = await finishRes.json();
+
+        if (finishData.success || finishData.id) {
+          const reelUrl = `https://www.facebook.com/reel/${videoId}`;
+          console.log(`🎉 [Facebook Reels Success] Video ID: ${videoId}, URL: ${reelUrl}`);
+
+          if (story?.id) {
+            const match = publishedStories.find(s => s.id === story.id);
+            if (match) {
+              match.facebookVideoId = videoId;
+              match.facebookUrl = reelUrl;
+              match.facebookUploadedAt = new Date().toISOString();
+            }
+          }
+          return { videoId, videoUrl: reelUrl, pageName: pageName || 'Facebook Page' };
+        }
+      }
+    } catch (reelsErr: any) {
+      console.warn("[Facebook Reels API Method Warning] Falling back to standard video API:", reelsErr?.message);
+    }
+
+    // Method 2: Fallback Standard Facebook Page Video Upload
+    console.log(`[Facebook Fallback] Posting video directly to Page Videos...`);
+    const formData = new FormData();
+    const blob = new Blob([videoBuffer], { type: 'video/mp4' });
+    formData.append('source', blob, 'video.mp4');
+    formData.append('title', title);
+    formData.append('description', description);
+    formData.append('access_token', pageAccessToken);
+
+    const directRes = await fetch(`https://graph.facebook.com/v19.0/${pageId}/videos`, {
+      method: 'POST',
+      body: formData
+    });
+    const directData: any = await directRes.json();
+
+    if (directData.id) {
+      const fbVideoId = directData.id;
+      const fbUrl = `https://www.facebook.com/watch/?v=${fbVideoId}`;
+      console.log(`🎉 [Facebook Video Success] Video ID: ${fbVideoId}, URL: ${fbUrl}`);
+
+      if (story?.id) {
+        const match = publishedStories.find(s => s.id === story.id);
+        if (match) {
+          match.facebookVideoId = fbVideoId;
+          match.facebookUrl = fbUrl;
+          match.facebookUploadedAt = new Date().toISOString();
+        }
+      }
+      return { videoId: fbVideoId, videoUrl: fbUrl, pageName: pageName || 'Facebook Page' };
+    } else {
+      throw new Error(directData.error?.message || "ไม่สามารถอัปโหลดเข้า Facebook Page ได้ (โปรดตรวจสอบ Page Access Token)");
+    }
+  } finally {
+    cleanup();
+  }
+}
+
+// Facebook Page Config Endpoints
+app.get("/api/facebook/config", (req, res) => {
+  res.json({
+    connected: !!facebookPageConfig,
+    pageId: facebookPageConfig?.pageId || null,
+    pageName: facebookPageConfig?.pageName || null
+  });
+});
+
+app.post("/api/facebook/config", async (req, res) => {
+  try {
+    const { pageAccessToken, pageId, forceSave } = req.body;
+    if (!pageAccessToken || !pageId) {
+      return res.status(400).json({ error: "กรุณากรอกทั้ง Page Access Token และ Page ID" });
+    }
+
+    const cleanToken = String(pageAccessToken).replace(/[\r\n\t]/g, '').trim();
+    const cleanPageId = String(pageId).replace(/[^\d]/g, '').trim() || String(pageId).trim();
+
+    if (forceSave) {
+      facebookPageConfig = {
+        pageAccessToken: cleanToken,
+        pageId: cleanPageId,
+        pageName: `เพจ ID: ${cleanPageId}`
+      };
+      console.log(`✅ [Facebook Config Force Saved] Connected to Page ID ${cleanPageId}`);
+      return res.json({
+        success: true,
+        pageId: cleanPageId,
+        pageName: facebookPageConfig.pageName,
+        message: `บันทึกข้อมูล Facebook Page ID ${cleanPageId} เรียบร้อยแล้ว!`
+      });
+    }
+
+    let detectedPageName = '';
+    let resolvedToken = cleanToken;
+    let apiErrorMessage = '';
+
+    try {
+      // Step 1: Try direct page check with token
+      const pageRes = await fetch(`https://graph.facebook.com/v19.0/${cleanPageId}?fields=name,id,access_token&access_token=${encodeURIComponent(cleanToken)}`);
+      const pageData: any = await pageRes.json();
+
+      if (pageData.name && pageData.id) {
+        detectedPageName = pageData.name;
+        if (pageData.access_token) {
+          resolvedToken = pageData.access_token;
+        }
+      } else if (pageData.error) {
+        apiErrorMessage = pageData.error.message || 'Page ID หรือ Access Token ไม่ถูกต้อง';
+        console.warn(`[FB Config] Direct page fetch returned error: ${apiErrorMessage}. Checking /me/accounts...`);
+
+        // Step 2: If cleanToken is a User Access Token, resolve Page Access Token from /me/accounts
+        const accRes = await fetch(`https://graph.facebook.com/v19.0/me/accounts?access_token=${encodeURIComponent(cleanToken)}`);
+        const accData: any = await accRes.json();
+
+        if (accData.data && Array.isArray(accData.data) && accData.data.length > 0) {
+          const matchPage = accData.data.find((p: any) => p.id === cleanPageId);
+          if (matchPage) {
+            detectedPageName = matchPage.name;
+            resolvedToken = matchPage.access_token || cleanToken;
+            apiErrorMessage = '';
+            console.log(`[FB Config] Successfully resolved Page Access Token for "${detectedPageName}" from User Token!`);
+          } else {
+            // Pick first available page from user's accounts if cleanPageId wasn't exact
+            const firstPage = accData.data[0];
+            detectedPageName = firstPage.name;
+            resolvedToken = firstPage.access_token || cleanToken;
+            apiErrorMessage = '';
+            console.log(`[FB Config] Auto-selected Page "${detectedPageName}" (${firstPage.id}) from User Token!`);
+          }
+        }
+      }
+    } catch (apiErr: any) {
+      console.warn(`[FB Config API Fetch Error] ${apiErr?.message}`);
+      apiErrorMessage = apiErr?.message || 'ไม่สามารถติดต่อ Meta Graph API ได้';
+    }
+
+    if (apiErrorMessage && !detectedPageName) {
+      return res.status(400).json({
+        error: `ตรวจสอบข้อมูลกับ Facebook ไม่ผ่าน: ${apiErrorMessage}`,
+        canForceSave: true
+      });
+    }
+
+    facebookPageConfig = {
+      pageAccessToken: resolvedToken,
+      pageId: cleanPageId,
+      pageName: detectedPageName || `เพจ ID: ${cleanPageId}`
+    };
+
+    console.log(`✅ [Facebook Config Success] Connected to Page "${facebookPageConfig.pageName}" (${facebookPageConfig.pageId})`);
+
+    res.json({
+      success: true,
+      pageId: facebookPageConfig.pageId,
+      pageName: facebookPageConfig.pageName,
+      message: `เชื่อมต่อ Facebook Page "${facebookPageConfig.pageName}" เรียบร้อยแล้ว!`
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "เกิดข้อผิดพลาดในการเชื่อมต่อ Facebook" });
+  }
+});
+
+app.delete("/api/facebook/config", (req, res) => {
+  facebookPageConfig = null;
+  res.json({ success: true, message: "ยกเลิกการเชื่อมต่อ Facebook Page แล้ว" });
+});
+
+app.post("/api/facebook/upload", async (req, res) => {
+  try {
+    const { story, videoBase64 } = req.body;
+    if (!facebookPageConfig) {
+      return res.status(401).json({
+        error: "กรุณาเชื่อมต่อเพจ Facebook ของคุณก่อน (กรอก Page Access Token และ Page ID)",
+        needAuth: true
+      });
+    }
+
+    const result = await uploadStoryToFacebookReels(story, videoBase64);
+
+    res.json({
+      success: true,
+      videoId: result.videoId,
+      videoUrl: result.videoUrl,
+      pageName: result.pageName,
+      message: `🎉 อัปโหลดคลิป "${story?.title || 'หนังสั้น'}" ขึ้น Facebook Reels สำเร็จแล้ว!`
+    });
+  } catch (error: any) {
+    console.error("Facebook Upload Error:", error);
+    res.status(500).json({
+      error: error.message || "เกิดข้อผิดพลาดในการโพสต์คลิปขึ้น Facebook Reels API"
+    });
+  }
+});
+
 // 5. POST Upload Video directly to YouTube Shorts via YouTube Data API v3
 app.post("/api/youtube/upload", async (req, res) => {
   try {
@@ -1220,10 +1475,12 @@ let autoPilotState = {
   lastRunTime: new Date().toISOString(),
   nextRunTime: new Date(Date.now() + 6 * 3600 * 1000).toISOString(),
   totalAutoGenerated: 14,
+  uploadTargetPlatform: 'both' as 'youtube' | 'facebook' | 'both' | 'none', // Target platform choice
   autoUploadToYouTube: true,
+  autoUploadToFacebook: true,
   logs: [
     `[${new Date().toLocaleTimeString('th-TH')}] 🤖 24/7 Auto-Pilot Daemon เปิดใช้งานอยู่! ทำงานอัตโนมัติบน Cloud Server 24 ชั่วโมง`,
-    `[${new Date().toLocaleTimeString('th-TH')}] ⚡ ตั้งค่าการรันอัตโนมัติทุกๆ 6 ชั่วโมง (เขียนบท 5 ฉาก ➔ เจนภาพ ➔ รวมวิดีโอ ➔ ปักหมุด Shopee ➔ ยิงเข้า YouTube Shorts)`
+    `[${new Date().toLocaleTimeString('th-TH')}] ⚡ ตั้งค่าการรันอัตโนมัติทุกๆ 6 ชั่วโมง (เขียนบท 5 ฉาก ➔ เจนภาพ ➔ รวมวิดีโอ ➔ ปักหมุด Shopee ➔ ยิงเข้า YouTube Shorts & Facebook Reels)`
   ]
 };
 
@@ -1314,17 +1571,35 @@ async function executeAutoPilotTask() {
 
     autoPilotState.logs.unshift(`[${timeStr}] ✅ [24/7 Cron] เจนหนังสั้นเรื่อง "${newStory.title}" เผยแพร่ขึ้น Feed สตรีมมิ่งในแอปสำเร็จ!`);
 
-    if (youtubeAuthTokens && autoPilotState.autoUploadToYouTube) {
+    const shouldUploadYT = (autoPilotState.uploadTargetPlatform === 'youtube' || autoPilotState.uploadTargetPlatform === 'both') && autoPilotState.autoUploadToYouTube;
+    const shouldUploadFB = (autoPilotState.uploadTargetPlatform === 'facebook' || autoPilotState.uploadTargetPlatform === 'both') && autoPilotState.autoUploadToFacebook;
+
+    // YouTube Upload
+    if (shouldUploadYT && youtubeAuthTokens) {
       autoPilotState.logs.unshift(`[${timeStr}] 🚀 [24/7 Cron] กำลังเรียก YouTube Data API v3 ยิงคลิปตรงเข้าช่อง...`);
       try {
         const uploadResult = await uploadStoryToYouTube(newStory);
-        autoPilotState.logs.unshift(`[${timeStr}] 🎉 [24/7 Cron] อัปโหลดขึ้น YouTube Shorts จริงสำเร็จ! Video ID: ${uploadResult.videoId} (ช่อง: ${uploadResult.channelTitle})`);
+        autoPilotState.logs.unshift(`[${timeStr}] 🎉 [24/7 Cron YouTube] อัปโหลดขึ้น YouTube Shorts จริงสำเร็จ! Video ID: ${uploadResult.videoId} (ช่อง: ${uploadResult.channelTitle})`);
       } catch (ytErr: any) {
         console.error("24/7 AutoPilot YouTube Upload Error:", ytErr);
-        autoPilotState.logs.unshift(`[${timeStr}] ⚠️ [24/7 Cron YouTube Error] ${ytErr?.message || 'ไม่สามารถอัปโหลดเข้า YouTube ได้ (อาจติด Quota หรือ Token)'}`);
+        autoPilotState.logs.unshift(`[${timeStr}] ⚠️ [24/7 Cron YouTube Error] ${ytErr?.message || 'ไม่สามารถอัปโหลดเข้า YouTube ได้'}`);
       }
-    } else {
-      autoPilotState.logs.unshift(`[${timeStr}] ℹ️ [24/7 Cron] คลิปถูกเผยแพร่บน Feed สตรีมมิ่งในแอป 100% (ผูก YouTube OAuth เพื่อให้ระบบอัปโหลดขึ้น YouTube จริงอัตโนมัติ)`);
+    }
+
+    // Facebook Reels Upload
+    if (shouldUploadFB && facebookPageConfig) {
+      autoPilotState.logs.unshift(`[${timeStr}] 💙 [24/7 Cron] กำลังเรียก Meta Graph API ยิงคลิปเข้า Facebook Reels...`);
+      try {
+        const fbResult = await uploadStoryToFacebookReels(newStory);
+        autoPilotState.logs.unshift(`[${timeStr}] 🎉 [24/7 Cron Facebook] อัปโหลดขึ้น Facebook Reels จริงสำเร็จ! Video ID: ${fbResult.videoId} (เพจ: ${fbResult.pageName})`);
+      } catch (fbErr: any) {
+        console.error("24/7 AutoPilot Facebook Upload Error:", fbErr);
+        autoPilotState.logs.unshift(`[${timeStr}] ⚠️ [24/7 Cron Facebook Error] ${fbErr?.message || 'ไม่สามารถอัปโหลดเข้า Facebook Reels ได้'}`);
+      }
+    }
+
+    if (!shouldUploadYT && !shouldUploadFB) {
+      autoPilotState.logs.unshift(`[${timeStr}] ℹ️ [24/7 Cron] คลิปถูกเผยแพร่บน Feed สตรีมมิ่งในแอป 100% (เลือกผูก YouTube หรือ Facebook เพิ่มเติมได้)`);
     }
   } catch (err: any) {
     autoPilotState.logs.unshift(`[${timeStr}] ❌ [24/7 Cron Error] เกิดข้อผิดพลาด: ${err?.message}`);
@@ -1346,18 +1621,23 @@ app.get("/api/autopilot/status", (req, res) => {
   res.json({
     ...autoPilotState,
     youtubeConnected: !!youtubeAuthTokens,
-    youtubeChannelTitle: youtubeChannelInfo?.title || null
+    youtubeChannelTitle: youtubeChannelInfo?.title || null,
+    facebookConnected: !!facebookPageConfig,
+    facebookPageId: facebookPageConfig?.pageId || null,
+    facebookPageName: facebookPageConfig?.pageName || null
   });
 });
 
 app.post("/api/autopilot/toggle", (req, res) => {
-  const { enabled, intervalHours, autoUploadToYouTube } = req.body;
+  const { enabled, intervalHours, autoUploadToYouTube, autoUploadToFacebook, uploadTargetPlatform } = req.body;
   if (typeof enabled === 'boolean') autoPilotState.enabled = enabled;
   if (typeof intervalHours === 'number' && intervalHours > 0) {
     autoPilotState.intervalHours = intervalHours;
     autoPilotState.nextRunTime = new Date(Date.now() + intervalHours * 3600 * 1000).toISOString();
   }
   if (typeof autoUploadToYouTube === 'boolean') autoPilotState.autoUploadToYouTube = autoUploadToYouTube;
+  if (typeof autoUploadToFacebook === 'boolean') autoPilotState.autoUploadToFacebook = autoUploadToFacebook;
+  if (uploadTargetPlatform) autoPilotState.uploadTargetPlatform = uploadTargetPlatform;
 
   const actionText = autoPilotState.enabled ? `เปิดใช้งาน (ทำงานทุกๆ ${autoPilotState.intervalHours} ช.ม.)` : 'ปิดใช้งาน';
   autoPilotState.logs.unshift(`[${new Date().toLocaleTimeString('th-TH')}] ⚙️ อัปเดตสถานะ 24/7 Auto-Pilot: ${actionText}`);

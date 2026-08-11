@@ -64,6 +64,35 @@ export const ShortVideoPlayer: React.FC<Props> = ({
   const [downloadStatusText, setDownloadStatusText] = useState<string>('');
 
   const [ytUploading, setYtUploading] = useState<boolean>(false);
+  const [fbUploading, setFbUploading] = useState<boolean>(false);
+
+  const handleFacebookDirectUpload = async () => {
+    if (fbUploading) return;
+    setFbUploading(true);
+    try {
+      const res = await fetch('/api/facebook/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ story })
+      });
+
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        if (data.needAuth) {
+          alert('กรุณาไปที่เมนู "สตูดิโอ" แล้วกดปุ่ม "ผูก Facebook Reels" เพื่อใส่ Page Access Token และ Page ID');
+        } else {
+          alert('เกิดข้อผิดพลาดในการโพสต์คลิปขึ้น Facebook Reels: ' + data.error);
+        }
+      } else {
+        alert(`🎉 โพสต์ขึ้น Facebook Reels จริงสำเร็จแล้ว!\n\nเพจ: ${data.pageName}\nURL วิดีโอ: ${data.videoUrl}`);
+        window.open(data.videoUrl, '_blank');
+      }
+    } catch (err: any) {
+      alert('เกิดข้อผิดพลาด: ' + err.message);
+    } finally {
+      setFbUploading(false);
+    }
+  };
 
   const handleYouTubeDirectUpload = async () => {
     if (ytUploading) return;
@@ -555,11 +584,30 @@ ${sponsor ? `🛍️ สินค้า Shopee ป้ายยาในคลิ
                 {ytUploading ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
-                  <span className="font-black text-xs">▶</span>
+                  <span className="font-black text-xs">YT</span>
                 )}
               </div>
               <span className="text-[10px] font-bold text-red-300 mt-1">
-                {ytUploading ? 'กำลังอัปโหลด' : 'โพสต์ YouTube'}
+                {ytUploading ? 'อัปโหลด...' : 'ลง Shorts'}
+              </span>
+            </button>
+
+            {/* 1-Click Direct Facebook Reels Upload Button */}
+            <button
+              onClick={handleFacebookDirectUpload}
+              disabled={fbUploading}
+              className="flex flex-col items-center group"
+              title="โพสต์วิดีโอนี้ขึ้น Facebook Reels จริงทันที"
+            >
+              <div className="w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-500 text-white hover:scale-110 border border-blue-400 flex items-center justify-center transition-all shadow-lg shadow-blue-950">
+                {fbUploading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <span className="font-black text-xs">FB</span>
+                )}
+              </div>
+              <span className="text-[10px] font-bold text-blue-300 mt-1">
+                {fbUploading ? 'อัปโหลด...' : 'ลง Reels'}
               </span>
             </button>
 

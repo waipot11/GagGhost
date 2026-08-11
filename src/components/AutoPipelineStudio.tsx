@@ -43,6 +43,7 @@ export const AutoPipelineStudio: React.FC<Props> = ({
   // 24/7 Cloud Autopilot Server State
   const [cloudAutopilot, setCloudAutopilot] = useState<any>(null);
   const [showYoutubeModal, setShowYoutubeModal] = useState<boolean>(false);
+  const [showFacebookModal, setShowFacebookModal] = useState<boolean>(false);
   const [customRefreshToken, setCustomRefreshToken] = useState<string>('');
   const [customChannelName, setCustomChannelName] = useState<string>('');
   const [authCodeInput, setAuthCodeInput] = useState<string>('');
@@ -50,6 +51,14 @@ export const AutoPipelineStudio: React.FC<Props> = ({
   const [clientSecretInput, setClientSecretInput] = useState<string>('');
   const [credentialsSaved, setCredentialsSaved] = useState<boolean>(false);
   const [youtubeConnecting, setYoutubeConnecting] = useState<boolean>(false);
+
+  // Facebook Reels Access Token & Page ID State
+  const [fbAccessTokenInput, setFbAccessTokenInput] = useState<string>('');
+  const [fbPageIdInput, setFbPageIdInput] = useState<string>('');
+  const [facebookConfig, setFacebookConfig] = useState<any>(null);
+  const [facebookConnecting, setFacebookConnecting] = useState<boolean>(false);
+  const [fbErrorMessage, setFbErrorMessage] = useState<string>('');
+  const [canForceSaveFb, setCanForceSaveFb] = useState<boolean>(false);
 
   useEffect(() => {
     fetch('/api/youtube/credentials')
@@ -59,7 +68,62 @@ export const AutoPipelineStudio: React.FC<Props> = ({
         if (d.hasClientId && d.hasClientSecret) setCredentialsSaved(true);
       })
       .catch(() => {});
+
+    fetch('/api/facebook/config')
+      .then(res => res.json())
+      .then(d => setFacebookConfig(d))
+      .catch(() => {});
   }, []);
+
+  const handleSaveFacebookConfig = async (e?: React.FormEvent, isForce: boolean = false) => {
+    if (e) e.preventDefault();
+    setFbErrorMessage('');
+    setCanForceSaveFb(false);
+
+    if (!fbAccessTokenInput || !fbPageIdInput) {
+      setFbErrorMessage('กรุณากรอกทั้ง Facebook Page Access Token และ Page ID');
+      return;
+    }
+    setFacebookConnecting(true);
+    try {
+      const res = await fetch('/api/facebook/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pageAccessToken: fbAccessTokenInput,
+          pageId: fbPageIdInput,
+          forceSave: isForce
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        addLog(`✅ ${data.message}`, 'success');
+        alert(`เชื่อมต่อเพจ Facebook "${data.pageName}" เรียบร้อยแล้ว!`);
+        setShowFacebookModal(false);
+        setFacebookConfig({ connected: true, pageId: data.pageId, pageName: data.pageName });
+        fetchCloudAutopilotStatus();
+      } else {
+        setFbErrorMessage(data.error || 'เกิดข้อผิดพลาดในการเชื่อมต่อ Facebook Page');
+        if (data.canForceSave) setCanForceSaveFb(true);
+      }
+    } catch (err: any) {
+      setFbErrorMessage('เกิดข้อผิดพลาด: ' + err.message);
+    } finally {
+      setFacebookConnecting(false);
+    }
+  };
+
+  const handleDisconnectFacebook = async () => {
+    if (!confirm('คุณต้องการยกเลิกการเชื่อมต่อ Facebook Page ใช่หรือไม่?')) return;
+    try {
+      await fetch('/api/facebook/config', { method: 'DELETE' });
+      setFacebookConfig({ connected: false });
+      addLog('ยกเลิกการเชื่อมต่อ Facebook Page เรียบร้อยแล้ว', 'info');
+      fetchCloudAutopilotStatus();
+    } catch (e: any) {
+      alert(e.message);
+    }
+  };
 
   const handleSaveCredentials = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -368,36 +432,66 @@ export const AutoPipelineStudio: React.FC<Props> = ({
           <div className="flex flex-wrap items-center gap-2 shrink-0">
             <button
               onClick={() => setShowYoutubeModal(true)}
-              className="bg-red-600 hover:bg-red-500 text-white font-bold text-xs px-4 py-2.5 rounded-2xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+              className="bg-red-600 hover:bg-red-500 text-white font-bold text-xs px-3.5 py-2 rounded-2xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
             >
               <Youtube className="w-4 h-4 fill-white" />
-              {cloudAutopilot?.youtubeConnected ? `✓ ช่อง: ${cloudAutopilot.youtubeChannelTitle || 'ผูกช่องแล้ว'}` : '🔗 ผูกช่อง YouTube Shorts'}
+              {cloudAutopilot?.youtubeConnected ? `✓ YT: ${cloudAutopilot.youtubeChannelTitle || 'ผูกช่องแล้ว'}` : '🔗 ผูก YouTube'}
+            </button>
+
+            <button
+              onClick={() => setShowFacebookModal(true)}
+              className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-3.5 py-2 rounded-2xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+            >
+              <span className="font-black text-sm">f</span>
+              {cloudAutopilot?.facebookConnected ? `✓ FB: ${cloudAutopilot.facebookPageName || 'ผูกเพจแล้ว'}` : '🔗 ผูก Facebook Reels'}
             </button>
 
             <button
               onClick={() => handleToggleCloudAutopilot(!cloudAutopilot?.enabled)}
-              className={`px-5 py-2.5 rounded-2xl font-black text-xs transition-all shadow-lg flex items-center gap-2 cursor-pointer ${
+              className={`px-4 py-2 rounded-2xl font-black text-xs transition-all shadow-lg flex items-center gap-2 cursor-pointer ${
                 cloudAutopilot?.enabled
                   ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-950/80'
                   : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950'
               }`}
             >
-              {cloudAutopilot?.enabled ? '✓ สถานะ: เปิดรัน 24/7 อยู่ (กดเพื่อปิด)' : '▶ กดเปิดรันอัตโนมัติ 24/7'}
+              {cloudAutopilot?.enabled ? '✓ รัน 24/7 อยู่' : '▶ เปิดรัน 24/7'}
             </button>
 
             <button
               onClick={handleTriggerCloudAutopilotNow}
-              className="bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs px-4 py-2.5 rounded-2xl border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer"
+              className="bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs px-3.5 py-2 rounded-2xl border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer"
               title="ทดสอบรัน Cron Cycle ทันที 1 รอบ"
             >
               <Zap className="w-4 h-4 fill-amber-300" />
-              ทดสอบรัน 1 รอบตอนนี้
+              รัน 1 รอบตอนนี้
             </button>
           </div>
         </div>
 
         {/* Status Grid & Frequency Selector */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-4 text-xs">
+          <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
+            <span className="text-[10px] text-slate-400 block font-semibold">ช่องทางอัปโหลดอัตโนมัติ:</span>
+            <select
+              value={cloudAutopilot?.uploadTargetPlatform || 'both'}
+              onChange={(e) => {
+                fetch('/api/autopilot/toggle', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ uploadTargetPlatform: e.target.value })
+                })
+                  .then(res => res.json())
+                  .then(data => setCloudAutopilot(data.autoPilotState));
+              }}
+              className="mt-1 w-full bg-slate-900 border border-slate-700 rounded-xl px-2 py-1 text-xs text-cyan-300 font-bold focus:outline-none"
+            >
+              <option value="both">🚀 ทั้งคู่ (YouTube + FB Reels)</option>
+              <option value="facebook">💙 Facebook Reels เท่านั้น</option>
+              <option value="youtube">🔴 YouTube Shorts เท่านั้น</option>
+              <option value="none">🔒 Feed ในแอปเท่านั้น (ไม่อัปโหลด)</option>
+            </select>
+          </div>
+
           <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
             <span className="text-[10px] text-slate-400 block font-semibold">รอบการรันอัตโนมัติ:</span>
             <select
@@ -409,37 +503,46 @@ export const AutoPipelineStudio: React.FC<Props> = ({
               <option value={3}>ทุกๆ 3 ชั่วโมง</option>
               <option value={6}>ทุกๆ 6 ชั่วโมง (แนะนำ)</option>
               <option value={12}>ทุกๆ 12 ชั่วโมง</option>
-              <option value={24}>ทุกๆ 24 ชั่วโมง (วันละ 1 คลิป)</option>
+              <option value={24}>ทุกๆ 24 ชั่วโมง</option>
             </select>
-          </div>
-
-          <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
-            <span className="text-[10px] text-slate-400 block font-semibold">ผลิตสะสมโดยบอท 24/7:</span>
-            <span className="text-base font-black text-emerald-400 block mt-0.5">
-              {cloudAutopilot?.totalAutoGenerated || 0} คลิป
-            </span>
           </div>
 
           <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 flex flex-col justify-between">
             <div>
-              <span className="text-[10px] text-slate-400 block font-semibold">การเชื่อมต่อช่อง YouTube:</span>
-              <span className={`text-xs font-bold block mt-0.5 ${cloudAutopilot?.youtubeConnected ? 'text-emerald-400' : 'text-amber-400'}`}>
-                {cloudAutopilot?.youtubeConnected ? `✓ ${cloudAutopilot.youtubeChannelTitle || 'ผูกช่องเรียบร้อย'}` : '⚠️ ยังไม่ได้ผูกช่อง'}
+              <span className="text-[10px] text-slate-400 block font-semibold">สถานะ YouTube Shorts:</span>
+              <span className={`text-[11px] font-bold block mt-0.5 truncate ${cloudAutopilot?.youtubeConnected ? 'text-emerald-400' : 'text-amber-400'}`}>
+                {cloudAutopilot?.youtubeConnected ? `✓ ${cloudAutopilot.youtubeChannelTitle || 'ผูกช่องแล้ว'}` : '⚠️ ยังไม่เชื่อมต่อ'}
               </span>
             </div>
             <button
               onClick={() => setShowYoutubeModal(true)}
-              className="mt-2 w-full bg-red-600 hover:bg-red-500 text-white font-bold text-[11px] py-1.5 px-2 rounded-xl transition-all shadow flex items-center justify-center gap-1.5 cursor-pointer"
+              className="mt-1.5 w-full bg-red-600 hover:bg-red-500 text-white font-bold text-[10px] py-1 px-2 rounded-xl transition-all shadow flex items-center justify-center gap-1 cursor-pointer"
             >
-              <Youtube className="w-3.5 h-3.5" />
-              {cloudAutopilot?.youtubeConnected ? 'จัดการ/เปลี่ยนช่อง' : '🔗 กดผูกช่อง YouTube'}
+              <Youtube className="w-3 h-3" />
+              {cloudAutopilot?.youtubeConnected ? 'ตั้งค่า YouTube' : 'ผูก YouTube'}
+            </button>
+          </div>
+
+          <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 flex flex-col justify-between">
+            <div>
+              <span className="text-[10px] text-slate-400 block font-semibold">สถานะ Facebook Reels:</span>
+              <span className={`text-[11px] font-bold block mt-0.5 truncate ${cloudAutopilot?.facebookConnected ? 'text-emerald-400' : 'text-blue-400'}`}>
+                {cloudAutopilot?.facebookConnected ? `✓ ${cloudAutopilot.facebookPageName || 'ผูกเพจแล้ว'}` : '⚠️ ยังไม่เชื่อมต่อ'}
+              </span>
+            </div>
+            <button
+              onClick={() => setShowFacebookModal(true)}
+              className="mt-1.5 w-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-[10px] py-1 px-2 rounded-xl transition-all shadow flex items-center justify-center gap-1 cursor-pointer"
+            >
+              <span className="font-black text-xs">f</span>
+              {cloudAutopilot?.facebookConnected ? 'ตั้งค่า FB Reels' : 'ผูก Facebook'}
             </button>
           </div>
 
           <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
-            <span className="text-[10px] text-slate-400 block font-semibold">รอบถัดไป:</span>
-            <span className="text-xs font-bold text-slate-200 block mt-1">
-              {cloudAutopilot?.nextRunTime ? new Date(cloudAutopilot.nextRunTime).toLocaleTimeString('th-TH') : 'รอเปิดใช้งาน'}
+            <span className="text-[10px] text-slate-400 block font-semibold">ผลิตสะสมโดยบอท:</span>
+            <span className="text-base font-black text-emerald-400 block mt-0.5">
+              {cloudAutopilot?.totalAutoGenerated || 0} คลิป
             </span>
           </div>
         </div>
@@ -1072,6 +1175,123 @@ export const AutoPipelineStudio: React.FC<Props> = ({
                 </button>
               </form>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Facebook Reels Connection Modal */}
+      {showFacebookModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-blue-500/50 rounded-3xl max-w-lg w-full p-6 shadow-2xl relative text-left max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={() => setShowFacebookModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white bg-slate-800 p-1.5 rounded-full"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black text-xl shadow-lg">
+                f
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-white">
+                  💙 ตั้งค่าการอัปโหลด Facebook Reels อัตโนมัติ
+                </h3>
+                <p className="text-xs text-slate-300">
+                  เชื่อมต่อ Meta Page Access Token เพื่อยิงคลิปตรงเข้า Facebook Page
+                </p>
+              </div>
+            </div>
+
+            {/* Connection Status Box */}
+            {facebookConfig?.connected ? (
+              <div className="bg-emerald-950/80 border border-emerald-600 p-4 rounded-2xl mb-5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4" /> เชื่อมต่อกับเพจ Facebook แล้ว
+                  </span>
+                  <button
+                    onClick={handleDisconnectFacebook}
+                    className="text-[11px] text-red-400 hover:underline cursor-pointer"
+                  >
+                    ยกเลิกการเชื่อมต่อ
+                  </button>
+                </div>
+                <p className="text-xs text-slate-200">
+                  ชื่อเพจ: <strong>{facebookConfig.pageName}</strong>
+                </p>
+                <p className="text-[11px] text-slate-400 font-mono">
+                  Page ID: {facebookConfig.pageId}
+                </p>
+              </div>
+            ) : (
+              <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 text-xs text-slate-300 mb-5 space-y-2">
+                <p className="font-bold text-blue-400">💡 วิธีการเอา Page Access Token & Page ID (ใช้เวลา 2 นาที):</p>
+                <ol className="list-decimal pl-4 space-y-1 text-[11px] text-slate-300">
+                  <li>ไปที่ <strong>Meta Graph API Explorer</strong> (<a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noreferrer" className="text-cyan-400 underline">developers.facebook.com/tools/explorer</a>)</li>
+                  <li>เลือก <strong>Meta App</strong> และเลือกเพจของคุณในช่อง <strong>User or Page</strong></li>
+                  <li>เพิ่มสิทธิ์ (Permissions): <code className="text-emerald-300">pages_show_list</code>, <code className="text-emerald-300">pages_manage_posts</code>, <code className="text-emerald-300">publish_video</code></li>
+                  <li>กด <strong>Generate Access Token</strong> แล้วสลับ Token มาเป็น <strong>Page Access Token</strong></li>
+                  <li>ก๊อปปี้ Token และ Page ID มาวางในช่องด้านล่างแล้วกดบันทึก</li>
+                </ol>
+              </div>
+            )}
+
+            {fbErrorMessage && (
+              <div className="bg-red-950/90 border border-red-500/80 p-3.5 rounded-2xl mb-4 text-xs text-red-200 space-y-2">
+                <p className="font-bold flex items-center gap-1.5">
+                  ⚠️ {fbErrorMessage}
+                </p>
+                {canForceSaveFb && (
+                  <div className="pt-1 border-t border-red-800/60">
+                    <button
+                      type="button"
+                      onClick={() => handleSaveFacebookConfig(undefined, true)}
+                      className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-3 rounded-xl transition-all shadow text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      ⚡ ยืนยันบันทึกข้อมูลนี้ทันที (ข้ามการตรวจสอบ Meta API)
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <form onSubmit={(e) => handleSaveFacebookConfig(e, false)} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">
+                  Facebook Page ID:
+                </label>
+                <input
+                  type="text"
+                  placeholder="เช่น 109283746501928"
+                  value={fbPageIdInput}
+                  onChange={e => setFbPageIdInput(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">
+                  Facebook Page Access Token (User / Page Token):
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="วาง EAAG... ยาวๆ ที่นี่"
+                  value={fbAccessTokenInput}
+                  onChange={e => setFbAccessTokenInput(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={facebookConnecting || !fbAccessTokenInput || !fbPageIdInput}
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 text-xs"
+              >
+                {facebookConnecting ? 'กำลังตรวจสอบสิทธิ์กับ Facebook...' : '💾 บันทึกและเชื่อมต่อเพจ Facebook'}
+              </button>
+            </form>
           </div>
         </div>
       )}
