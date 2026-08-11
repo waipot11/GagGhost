@@ -1403,6 +1403,7 @@ app.post("/api/facebook/config", async (req, res) => {
     let detectedPageName = '';
     let resolvedToken = cleanToken;
     let apiErrorMessage = '';
+    let missingPermissions: string[] = [];
 
     try {
       // Step 1: Try direct page check with token
@@ -1439,6 +1440,27 @@ app.post("/api/facebook/config", async (req, res) => {
           }
         }
       }
+
+      // Step 3: Check permissions on resolvedToken
+      try {
+        const permRes = await fetch(`https://graph.facebook.com/v19.0/me/permissions?access_token=${encodeURIComponent(resolvedToken)}`);
+        const permData: any = await permRes.json();
+        if (permData.data && Array.isArray(permData.data)) {
+          const grantedSet = new Set(permData.data.filter((p: any) => p.status === 'granted').map((p: any) => p.permission));
+          const requiredPerms = ['publish_video', 'pages_show_list', 'pages_read_engagement'];
+          for (const reqP of requiredPerms) {
+            if (!grantedSet.has(reqP)) {
+              missingPermissions.push(reqP);
+            }
+          }
+          if (missingPermissions.length > 0) {
+            console.warn(`[FB Config Permission Check] Missing granted permissions: ${missingPermissions.join(', ')}`);
+          }
+        }
+      } catch (pErr: any) {
+        console.warn(`[FB Config Permission Check Warning] ${pErr?.message}`);
+      }
+
     } catch (apiErr: any) {
       console.warn(`[FB Config API Fetch Error] ${apiErr?.message}`);
       apiErrorMessage = apiErr?.message || 'ไม่สามารถติดต่อ Meta Graph API ได้';
@@ -1459,11 +1481,18 @@ app.post("/api/facebook/config", async (req, res) => {
 
     console.log(`✅ [Facebook Config Success] Connected to Page "${facebookPageConfig.pageName}" (${facebookPageConfig.pageId})`);
 
+    let warningMsg = '';
+    if (missingPermissions.includes('publish_video')) {
+      warningMsg = `⚠️ คำเตือน: Token ของคุณยังขาดสิทธิ์ 'publish_video' (จำเป็นสำหรับการลง Reels) กรุณากด Add Permission เพิ่ม publish_video แล้วกด Generate Access Token ใหม่`;
+    }
+
     res.json({
       success: true,
       pageId: facebookPageConfig.pageId,
       pageName: facebookPageConfig.pageName,
-      message: `เชื่อมต่อ Facebook Page "${facebookPageConfig.pageName}" เรียบร้อยแล้ว!`
+      missingPermissions,
+      warning: warningMsg,
+      message: warningMsg || `เชื่อมต่อ Facebook Page "${facebookPageConfig.pageName}" เรียบร้อยแล้ว!`
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message || "เกิดข้อผิดพลาดในการเชื่อมต่อ Facebook" });

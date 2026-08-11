@@ -97,8 +97,12 @@ export const AutoPipelineStudio: React.FC<Props> = ({
       });
       const data = await res.json();
       if (data.success) {
-        addLog(`✅ ${data.message}`, 'success');
-        alert(`เชื่อมต่อเพจ Facebook "${data.pageName}" เรียบร้อยแล้ว!`);
+        addLog(`✅ ${data.message}`, data.warning ? 'warning' : 'success');
+        if (data.warning) {
+          alert(`เชื่อมต่อเพจ Facebook "${data.pageName}" แล้ว\n\n${data.warning}`);
+        } else {
+          alert(`เชื่อมต่อเพจ Facebook "${data.pageName}" เรียบร้อยแล้ว!`);
+        }
         setShowFacebookModal(false);
         setFacebookConfig({ connected: true, pageId: data.pageId, pageName: data.pageName });
         fetchCloudAutopilotStatus();
@@ -1230,15 +1234,15 @@ export const AutoPipelineStudio: React.FC<Props> = ({
                 <p className="font-bold text-blue-400">💡 วิธีสร้าง Page Access Token ที่มีสิทธิ์ลง Reels (แก้ปัญหาสิทธิ์ #100):</p>
                 <ol className="list-decimal pl-4 space-y-1 text-[11px] text-slate-300">
                   <li>ไปที่ <strong>Meta Graph API Explorer</strong> (<a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noreferrer" className="text-cyan-400 underline">developers.facebook.com/tools/explorer</a>)</li>
-                  <li>ตรงช่อง <strong>User or Page</strong> ให้สลับจาก User Token เป็น <strong>ชื่อเพจ Facebook ของคุณ</strong></li>
-                  <li>ในส่วน <strong>Permissions</strong> ให้กด Add a Permission แล้วเพิ่ม 3 สิทธิ์นี้:
+                  <li>ตรงช่อง <strong>User or Page (ผู้ใช้หรือเพจ)</strong> เลือกเพจของคุณ (เช่น <strong>Noinashop2024</strong>)</li>
+                  <li>ในส่วน <strong>Permissions (สิทธิ์)</strong> ตรวจสอบให้มี 3 สิทธิ์หลักนี้ (หากไม่มีให้กด Add a Permission แล้วเลือกเพิ่ม):
                     <div className="flex flex-wrap gap-1 mt-1">
-                      <span className="bg-emerald-950 text-emerald-300 border border-emerald-700 px-1.5 py-0.5 rounded font-mono text-[10px]">pages_show_list</span>
-                      <span className="bg-emerald-950 text-emerald-300 border border-emerald-700 px-1.5 py-0.5 rounded font-mono text-[10px]">pages_manage_posts</span>
                       <span className="bg-emerald-950 text-emerald-300 border border-emerald-700 px-1.5 py-0.5 rounded font-mono text-[10px]">publish_video</span>
+                      <span className="bg-emerald-950 text-emerald-300 border border-emerald-700 px-1.5 py-0.5 rounded font-mono text-[10px]">pages_show_list</span>
+                      <span className="bg-emerald-950 text-emerald-300 border border-emerald-700 px-1.5 py-0.5 rounded font-mono text-[10px]">pages_read_engagement</span>
                     </div>
                   </li>
-                  <li>กดปุ่ม <strong>Generate Access Token</strong> ยินยอมสิทธิ์ในป๊อปอัพ Facebook</li>
+                  <li>กดปุ่ม <strong>Generate Access Token</strong> สีฟ้า เพื่อเจน Token ใหม่สำหรับเพจ</li>
                   <li>คัดลอก Token และ Page ID มาวางในช่องด้านล่าง แล้วกดบันทึก</li>
                 </ol>
               </div>
