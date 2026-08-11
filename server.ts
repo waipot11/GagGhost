@@ -1187,12 +1187,48 @@ ${story?.tagline ? `📌 ${story.tagline}\n` : ''}
 // ==========================================
 let facebookPageConfig: { pageAccessToken: string; pageId: string; pageName?: string } | null = null;
 
+async function getOrResolvePageAccessToken(token: string, pageId: string): Promise<{ pageToken: string; pageName?: string }> {
+  try {
+    // 1. Try directly fetching page access_token field
+    const pageRes = await fetch(`https://graph.facebook.com/v19.0/${pageId}?fields=access_token,name&access_token=${encodeURIComponent(token)}`);
+    const pageData: any = await pageRes.json();
+    if (pageData.access_token) {
+      console.log(`[FB Token Resolver] Obtained Page Access Token directly for Page "${pageData.name || pageId}"`);
+      return { pageToken: pageData.access_token, pageName: pageData.name };
+    }
+
+    // 2. Try /me/accounts to resolve Page Token from User Token
+    const meRes = await fetch(`https://graph.facebook.com/v19.0/me/accounts?access_token=${encodeURIComponent(token)}`);
+    const meData: any = await meRes.json();
+    if (meData.data && Array.isArray(meData.data) && meData.data.length > 0) {
+      const match = meData.data.find((p: any) => p.id === pageId);
+      if (match && match.access_token) {
+        console.log(`[FB Token Resolver] Resolved Page Access Token for "${match.name}" (${pageId}) from /me/accounts`);
+        return { pageToken: match.access_token, pageName: match.name };
+      }
+      const firstPage = meData.data[0];
+      if (firstPage.access_token) {
+        console.log(`[FB Token Resolver] Using first page's Access Token: "${firstPage.name}" (${firstPage.id})`);
+        return { pageToken: firstPage.access_token, pageName: firstPage.name };
+      }
+    }
+  } catch (err: any) {
+    console.warn(`[FB Token Resolver Warning] ${err?.message}`);
+  }
+  return { pageToken: token };
+}
+
 async function uploadStoryToFacebookReels(story: any, videoBase64?: string) {
   if (!facebookPageConfig || !facebookPageConfig.pageAccessToken || !facebookPageConfig.pageId) {
     throw new Error("ยังไม่ได้เชื่อมต่อ Facebook Page Access Token หรือ Page ID (กรุณาตั้งค่าช่อง Facebook ก่อน)");
   }
 
   const { pageAccessToken, pageId, pageName } = facebookPageConfig;
+
+  // Resolve to actual Page Access Token if User Token was supplied
+  const { pageToken: activePageToken, pageName: resolvedPageName } = await getOrResolvePageAccessToken(pageAccessToken, pageId);
+  const finalPageName = resolvedPageName || pageName || 'Facebook Page';
+
   const title = `👻 [หนังสั้นสยองขวัญ] ${story?.title || 'ผีตลกหักมุม'} #Reels`;
   const sponsor = story?.sponsorProduct || {
     name: 'ขาตั้งกล้องเซลฟี่บลูทูธ 2 เมตร',
@@ -1217,11 +1253,11 @@ async function uploadStoryToFacebookReels(story: any, videoBase64?: string) {
   try {
     const videoBuffer = fs.readFileSync(filePath);
     const fileSize = videoBuffer.length;
-    console.log(`[Facebook Reels Upload] Preparing upload for Page ID ${pageId}, file size: ${fileSize} bytes`);
+    console.log(`[Facebook Reels Upload] Preparing upload for Page ID ${pageId} ("${finalPageName}"), file size: ${fileSize} bytes`);
 
     // Method 1: Facebook Video Reels API (v19.0)
     try {
-      const startUrl = `https://graph.facebook.com/v19.0/${pageId}/video_reels?upload_phase=start&access_token=${encodeURIComponent(pageAccessToken)}`;
+      const startUrl = `https://graph.facebook.com/v19.0/${pageId}/video_reels?upload_phase=start&access_token=${encodeURIComponent(activePageToken)}`;
       const startRes = await fetch(startUrl, { method: "POST" });
       const startData: any = await startRes.json();
 
@@ -1233,7 +1269,7 @@ async function uploadStoryToFacebookReels(story: any, videoBase64?: string) {
         await fetch(uploadUrl, {
           method: "POST",
           headers: {
-            "Authorization": `OAuth ${pageAccessToken}`,
+            "Authorization": `OAuth ${activePageToken}`,
             "file_offset": "0",
             "Content-Type": "application/octet-stream"
           },
@@ -1241,7 +1277,7 @@ async function uploadStoryToFacebookReels(story: any, videoBase64?: string) {
         });
 
         // Finish / Publish Reel
-        const finishUrl = `https://graph.facebook.com/v19.0/${pageId}/video_reels?upload_phase=finish&video_id=${videoId}&video_state=PUBLISHED&description=${encodeURIComponent(description)}&access_token=${encodeURIComponent(pageAccessToken)}`;
+        const finishUrl = `https://graph.facebook.com/v19.0/${pageId}/video_reels?upload_phase=finish&video_id=${videoId}&video_state=PUBLISHED&description=${encodeURIComponent(description)}&access_token=${encodeURIComponent(activePageToken)}`;
         const finishRes = await fetch(finishUrl, { method: "POST" });
         const finishData: any = await finishRes.json();
 
@@ -1257,44 +1293,73 @@ async function uploadStoryToFacebookReels(story: any, videoBase64?: string) {
               match.facebookUploadedAt = new Date().toISOString();
             }
           }
-          return { videoId, videoUrl: reelUrl, pageName: pageName || 'Facebook Page' };
+          return { videoId, videoUrl: reelUrl, pageName: finalPageName };
+        } else if (finishData.error) {
+          console.warn("[Facebook Reels Finish Warning]:", finishData.error.message);
         }
+      } else if (startData.error) {
+        console.warn("[Facebook Reels Start Warning]:", startData.error.message);
       }
     } catch (reelsErr: any) {
       console.warn("[Facebook Reels API Method Warning] Falling back to standard video API:", reelsErr?.message);
     }
 
-    // Method 2: Fallback Standard Facebook Page Video Upload
-    console.log(`[Facebook Fallback] Posting video directly to Page Videos...`);
-    const formData = new FormData();
-    const blob = new Blob([videoBuffer], { type: 'video/mp4' });
-    formData.append('source', blob, 'video.mp4');
-    formData.append('title', title);
-    formData.append('description', description);
-    formData.append('access_token', pageAccessToken);
+    // Method 2: Standard Facebook Page Video Upload (Using graph-video.facebook.com)
+    console.log(`[Facebook Video Upload] Posting video to Page Videos for Page ${pageId} via graph-video.facebook.com...`);
+    try {
+      const formData = new FormData();
+      const blob = new Blob([videoBuffer], { type: 'video/mp4' });
+      formData.append('source', blob, 'video.mp4');
+      formData.append('title', title);
+      formData.append('description', description);
+      formData.append('access_token', activePageToken);
 
-    const directRes = await fetch(`https://graph.facebook.com/v19.0/${pageId}/videos`, {
-      method: 'POST',
-      body: formData
-    });
-    const directData: any = await directRes.json();
+      const directRes = await fetch(`https://graph-video.facebook.com/v19.0/${pageId}/videos`, {
+        method: 'POST',
+        body: formData
+      });
+      const directData: any = await directRes.json();
 
-    if (directData.id) {
-      const fbVideoId = directData.id;
-      const fbUrl = `https://www.facebook.com/watch/?v=${fbVideoId}`;
-      console.log(`🎉 [Facebook Video Success] Video ID: ${fbVideoId}, URL: ${fbUrl}`);
+      if (directData.id) {
+        const fbVideoId = directData.id;
+        const fbUrl = `https://www.facebook.com/watch/?v=${fbVideoId}`;
+        console.log(`🎉 [Facebook Video Success] Video ID: ${fbVideoId}, URL: ${fbUrl}`);
 
-      if (story?.id) {
-        const match = publishedStories.find(s => s.id === story.id);
-        if (match) {
-          match.facebookVideoId = fbVideoId;
-          match.facebookUrl = fbUrl;
-          match.facebookUploadedAt = new Date().toISOString();
+        if (story?.id) {
+          const match = publishedStories.find(s => s.id === story.id);
+          if (match) {
+            match.facebookVideoId = fbVideoId;
+            match.facebookUrl = fbUrl;
+            match.facebookUploadedAt = new Date().toISOString();
+          }
         }
+        return { videoId: fbVideoId, videoUrl: fbUrl, pageName: finalPageName };
+      } else {
+        const fbErrObj = directData.error || {};
+        console.warn("[Facebook graph-video.facebook.com Error]:", fbErrObj.message);
+
+        // Backup call to graph.facebook.com
+        const directRes2 = await fetch(`https://graph.facebook.com/v19.0/${pageId}/videos`, {
+          method: 'POST',
+          body: formData
+        });
+        const directData2: any = await directRes2.json();
+
+        if (directData2.id) {
+          const fbVideoId = directData2.id;
+          const fbUrl = `https://www.facebook.com/watch/?v=${fbVideoId}`;
+          console.log(`🎉 [Facebook Video Backup Success] Video ID: ${fbVideoId}, URL: ${fbUrl}`);
+          return { videoId: fbVideoId, videoUrl: fbUrl, pageName: finalPageName };
+        }
+
+        const errMsg = directData2.error?.message || fbErrObj.message || "ไม่สามารถอัปโหลดเข้า Facebook Page ได้";
+        if (errMsg.includes("No permission") || fbErrObj.code === 100 || directData2.error?.code === 100) {
+          throw new Error(`(#100) Token ขาดสิทธิ์ 'pages_manage_posts' หรือไม่ได้เปิดสิทธิ์ให้เพจ "${finalPageName}" (จากรูป Debugger ของคุณ สิทธิ์ pages_manage_posts ยังไม่ได้เพิ่มไว้ ให้กด Add Permission -> เพิ่ม pages_manage_posts แล้วกด Generate Token ใหม่)`);
+        }
+        throw new Error(errMsg);
       }
-      return { videoId: fbVideoId, videoUrl: fbUrl, pageName: pageName || 'Facebook Page' };
-    } else {
-      throw new Error(directData.error?.message || "ไม่สามารถอัปโหลดเข้า Facebook Page ได้ (โปรดตรวจสอบ Page Access Token)");
+    } catch (directErr: any) {
+      throw directErr;
     }
   } finally {
     cleanup();

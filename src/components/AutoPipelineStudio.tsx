@@ -1227,13 +1227,19 @@ export const AutoPipelineStudio: React.FC<Props> = ({
               </div>
             ) : (
               <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 text-xs text-slate-300 mb-5 space-y-2">
-                <p className="font-bold text-blue-400">💡 วิธีการเอา Page Access Token & Page ID (ใช้เวลา 2 นาที):</p>
+                <p className="font-bold text-blue-400">💡 วิธีสร้าง Page Access Token ที่มีสิทธิ์ลง Reels (แก้ปัญหาสิทธิ์ #100):</p>
                 <ol className="list-decimal pl-4 space-y-1 text-[11px] text-slate-300">
                   <li>ไปที่ <strong>Meta Graph API Explorer</strong> (<a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noreferrer" className="text-cyan-400 underline">developers.facebook.com/tools/explorer</a>)</li>
-                  <li>เลือก <strong>Meta App</strong> และเลือกเพจของคุณในช่อง <strong>User or Page</strong></li>
-                  <li>เพิ่มสิทธิ์ (Permissions): <code className="text-emerald-300">pages_show_list</code>, <code className="text-emerald-300">pages_manage_posts</code>, <code className="text-emerald-300">publish_video</code></li>
-                  <li>กด <strong>Generate Access Token</strong> แล้วสลับ Token มาเป็น <strong>Page Access Token</strong></li>
-                  <li>ก๊อปปี้ Token และ Page ID มาวางในช่องด้านล่างแล้วกดบันทึก</li>
+                  <li>ตรงช่อง <strong>User or Page</strong> ให้สลับจาก User Token เป็น <strong>ชื่อเพจ Facebook ของคุณ</strong></li>
+                  <li>ในส่วน <strong>Permissions</strong> ให้กด Add a Permission แล้วเพิ่ม 3 สิทธิ์นี้:
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      <span className="bg-emerald-950 text-emerald-300 border border-emerald-700 px-1.5 py-0.5 rounded font-mono text-[10px]">pages_show_list</span>
+                      <span className="bg-emerald-950 text-emerald-300 border border-emerald-700 px-1.5 py-0.5 rounded font-mono text-[10px]">pages_manage_posts</span>
+                      <span className="bg-emerald-950 text-emerald-300 border border-emerald-700 px-1.5 py-0.5 rounded font-mono text-[10px]">publish_video</span>
+                    </div>
+                  </li>
+                  <li>กดปุ่ม <strong>Generate Access Token</strong> ยินยอมสิทธิ์ในป๊อปอัพ Facebook</li>
+                  <li>คัดลอก Token และ Page ID มาวางในช่องด้านล่าง แล้วกดบันทึก</li>
                 </ol>
               </div>
             )}
