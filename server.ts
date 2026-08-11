@@ -1265,19 +1265,27 @@ async function uploadStoryToFacebookReels(story: any, videoBase64?: string) {
         const { video_id: videoId, upload_url: uploadUrl } = startData;
         console.log(`[Facebook Reels] Session created. Video ID: ${videoId}, uploading ${fileSize} bytes...`);
 
-        // Transfer binary video buffer
-        await fetch(uploadUrl, {
+        // Transfer binary video buffer with exact required headers
+        const transferRes = await fetch(uploadUrl, {
           method: "POST",
           headers: {
             "Authorization": `OAuth ${activePageToken}`,
+            "offset": "0",
             "file_offset": "0",
+            "file_size": fileSize.toString(),
             "Content-Type": "application/octet-stream"
           },
           body: videoBuffer
         });
 
+        const transferData = await transferRes.json().catch(() => ({}));
+        console.log(`[Facebook Reels Transfer] Status: ${transferRes.status}`, JSON.stringify(transferData));
+
+        // Pause to allow Meta backend processing
+        await new Promise(r => setTimeout(r, 2500));
+
         // Finish / Publish Reel
-        const finishUrl = `https://graph.facebook.com/v19.0/${pageId}/video_reels?upload_phase=finish&video_id=${videoId}&video_state=PUBLISHED&description=${encodeURIComponent(description)}&access_token=${encodeURIComponent(activePageToken)}`;
+        const finishUrl = `https://graph.facebook.com/v19.0/${pageId}/video_reels?upload_phase=finish&video_id=${videoId}&video_state=PUBLISHED&description=${encodeURIComponent(description)}&title=${encodeURIComponent(title)}&access_token=${encodeURIComponent(activePageToken)}`;
         const finishRes = await fetch(finishUrl, { method: "POST" });
         const finishData: any = await finishRes.json();
 
@@ -1304,12 +1312,53 @@ async function uploadStoryToFacebookReels(story: any, videoBase64?: string) {
       console.warn("[Facebook Reels API Method Warning] Falling back to standard video API:", reelsErr?.message);
     }
 
-    // Method 2: Standard Facebook Page Video Upload (Using graph-video.facebook.com)
-    console.log(`[Facebook Video Upload] Posting video to Page Videos for Page ${pageId} via graph-video.facebook.com...`);
+    // Method 2: Standard Facebook Page Video Resumable Upload
+    try {
+      console.log(`[Facebook Video Upload Method 2] Trying Resumable Video API for Page ${pageId}...`);
+      const startUrl = `https://graph-video.facebook.com/v19.0/${pageId}/videos?upload_phase=start&file_size=${fileSize}&access_token=${encodeURIComponent(activePageToken)}`;
+      const startRes = await fetch(startUrl, { method: "POST" });
+      const startData: any = await startRes.json();
+
+      if (startData.upload_session_id && startData.video_id) {
+        const { upload_session_id: sessionId, video_id: videoId } = startData;
+        
+        const transferUrl = `https://graph-video.facebook.com/v19.0/${pageId}/videos?upload_phase=transfer&upload_session_id=${sessionId}&start_offset=0&access_token=${encodeURIComponent(activePageToken)}`;
+        const formData = new FormData();
+        const fileObj = new File([videoBuffer], "video.mp4", { type: "video/mp4" });
+        formData.append('video_file_chunk', fileObj);
+
+        await fetch(transferUrl, { method: "POST", body: formData });
+        await new Promise(r => setTimeout(r, 1500));
+
+        const finishUrl = `https://graph-video.facebook.com/v19.0/${pageId}/videos?upload_phase=finish&upload_session_id=${sessionId}&title=${encodeURIComponent(title)}&description=${encodeURIComponent(description)}&access_token=${encodeURIComponent(activePageToken)}`;
+        const finishRes = await fetch(finishUrl, { method: "POST" });
+        const finishData: any = await finishRes.json();
+
+        if (finishData.success || finishData.id || videoId) {
+          const fbVideoId = finishData.id || videoId;
+          const fbUrl = `https://www.facebook.com/watch/?v=${fbVideoId}`;
+          console.log(`🎉 [Facebook Video Resumable Success] Video ID: ${fbVideoId}, URL: ${fbUrl}`);
+          if (story?.id) {
+            const match = publishedStories.find(s => s.id === story.id);
+            if (match) {
+              match.facebookVideoId = fbVideoId;
+              match.facebookUrl = fbUrl;
+              match.facebookUploadedAt = new Date().toISOString();
+            }
+          }
+          return { videoId: fbVideoId, videoUrl: fbUrl, pageName: finalPageName };
+        }
+      }
+    } catch (m2Err: any) {
+      console.warn("[Facebook Resumable Video Method 2 Warning]:", m2Err?.message);
+    }
+
+    // Method 3: Standard Direct Multipart Video Upload
+    console.log(`[Facebook Video Upload Method 3] Posting video to Page Videos for Page ${pageId} via graph-video.facebook.com...`);
     try {
       const formData = new FormData();
-      const blob = new Blob([videoBuffer], { type: 'video/mp4' });
-      formData.append('source', blob, 'video.mp4');
+      const videoFile = new File([videoBuffer], "video.mp4", { type: "video/mp4" });
+      formData.append('source', videoFile);
       formData.append('title', title);
       formData.append('description', description);
 
