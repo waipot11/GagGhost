@@ -1284,20 +1284,22 @@ async function uploadStoryToFacebookReels(story: any, videoBase64?: string) {
         // Pause to allow Meta backend processing
         await new Promise(r => setTimeout(r, 2500));
 
-        // Finish / Publish Reel with proper JSON POST payload
-        const finishRes = await fetch(`https://graph.facebook.com/v19.0/${pageId}/video_reels?upload_phase=finish&access_token=${encodeURIComponent(activePageToken)}`, {
+        // Finish / Publish Reel with URL params & x-www-form-urlencoded (Meta Graph API requirement)
+        const finishParams = new URLSearchParams();
+        finishParams.append('upload_phase', 'finish');
+        finishParams.append('video_id', videoId);
+        finishParams.append('video_state', 'PUBLISHED');
+        finishParams.append('description', description);
+        finishParams.append('title', title);
+
+        const finishUrl = `https://graph.facebook.com/v19.0/${pageId}/video_reels?upload_phase=finish&video_id=${videoId}&video_state=PUBLISHED&description=${encodeURIComponent(description)}&title=${encodeURIComponent(title)}&access_token=${encodeURIComponent(activePageToken)}`;
+
+        const finishRes = await fetch(finishUrl, {
           method: "POST",
           headers: {
-            "Content-Type": "application/json"
+            "Content-Type": "application/x-www-form-urlencoded"
           },
-          body: JSON.stringify({
-            upload_phase: "finish",
-            video_id: videoId,
-            video_state: "PUBLISHED",
-            description: description,
-            title: title,
-            access_token: activePageToken
-          })
+          body: finishParams.toString()
         });
         const finishData: any = await finishRes.json();
         console.log(`[Facebook Reels Finish Response]:`, JSON.stringify(finishData));
